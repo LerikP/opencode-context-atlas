@@ -1,0 +1,119 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { testRender } from "@opentui/solid";
+import { createSignal } from "solid-js";
+import { AtlasView } from "../src/view.tsx";
+import type { Report } from "../src/report.ts";
+
+const report: Report = { sessionID: "demo", limit: 200000, snapshot: {
+  model: "test/model", capturedAt: 1000, total: 30000, notes: [], entries: [
+    { id: "rules:AGENTS.md", category: "rules", name: "AGENTS.md", tokens: 10000,
+      bytes: 40, preview: "Prefer small changes.", truncated: false },
+    { id: "tools:read", category: "tools", name: "read", tokens: 20000,
+      bytes: 20, preview: "Read a local file.", truncated: false },
+  ],
+} };
+
+test("renders a context map and supports keyboard drill-down, back and close", async () => {
+  let closed = false;
+  const screen = await testRender(() => <AtlasView report={report} loading={false} error={null}
+    foreground="#eeeeee" muted="#999999" background="#1b1b23"
+    onClose={() => { closed = true; }} onRefresh={() => {}} />, { width: 100, height: 40 });
+  try {
+    await screen.renderOnce();
+    const frame = screen.captureCharFrame();
+    assert.ok(frame.includes("Context Atlas"), "the dialog has a visible title");
+    assert.ok(frame.includes("Rules & memory"));
+    assert.ok(frame.includes("Free space"));
+    assert.ok(frame.includes("15.0%"));
+    screen.mockInput.pressEnter();
+    await screen.renderOnce();
+    assert.ok(screen.captureCharFrame().includes("AGENTS.md"));
+    screen.mockInput.pressEnter();
+    await screen.renderOnce();
+    assert.ok(screen.captureCharFrame().includes("Prefer small changes."));
+    await screen.mockInput.pressKeys(["ESCAPE"], 40);
+    await screen.renderOnce();
+    assert.equal(closed, false);
+    await screen.mockInput.pressKeys(["ESCAPE"], 40);
+    await screen.renderOnce();
+    await screen.mockInput.pressKeys(["ESCAPE"], 40);
+    assert.equal(closed, true);
+  } finally {
+    screen.renderer.destroy();
+  }
+});
+
+test("mouse inspection survives resize and keeps the footer reachable in a short terminal", async () => {
+  const screen = await testRender(() => <AtlasView report={report} loading={false} error={null}
+    foreground="#eeeeee" muted="#999999" background="#1b1b23" onClose={() => {}} onRefresh={() => {}} />,
+    { width: 88, height: 35 });
+  try {
+    await screen.renderOnce();
+    const lines = screen.captureCharFrame().split("\n");
+    const row = lines.findIndex((line) => line.includes("Rules & memory"));
+    assert.ok(row >= 0);
+    await screen.mockMouse.click(lines[row].indexOf("Rules"), row);
+    await screen.renderOnce();
+    assert.ok(screen.captureCharFrame().includes("AGENTS.md"));
+    screen.resize(50, 20);
+    await screen.renderOnce();
+    const narrow = screen.captureCharFrame();
+    assert.ok(narrow.includes("Context Atlas"));
+    assert.ok(narrow.includes("r refresh"));
+    assert.ok(narrow.includes("AGENTS.md"));
+  } finally { screen.renderer.destroy(); }
+});
+
+test("missing capture and request failures are explicit, not zero usage", async () => {
+  const screen = await testRender(() => <AtlasView report={null} loading={false}
+    error="Context unavailable. Press r to retry." foreground="#eeeeee" muted="#999999" background="#1b1b23"
+    onClose={() => {}} onRefresh={() => {}} />, { width: 50, height: 20 });
+  try {
+    await screen.renderOnce();
+    assert.ok(screen.captureCharFrame().includes("Context unavailable"));
+    assert.ok(!screen.captureCharFrame().includes("0 tokens"));
+  } finally { screen.renderer.destroy(); }
+});
+
+test("refreshing a snapshot updates an open source preview", async () => {
+  const [current, update] = createSignal(report);
+  const screen = await testRender(() => <AtlasView report={current()} loading={false} error={null}
+    foreground="#eeeeee" muted="#999999" background="#1b1b23" onClose={() => {}} onRefresh={() => {}} />,
+    { width: 88, height: 35 });
+  try {
+    await screen.renderOnce();
+    screen.mockInput.pressEnter();
+    await screen.renderOnce();
+    screen.mockInput.pressEnter();
+    await screen.renderOnce();
+    assert.ok(screen.captureCharFrame().includes("Prefer small changes."));
+    const next = structuredClone(report);
+    next.snapshot!.entries[0].preview = "Updated rule from the latest request.";
+    update(next);
+    await screen.renderOnce();
+    assert.ok(screen.captureCharFrame().includes("Updated rule from the latest request."));
+    assert.ok(!screen.captureCharFrame().includes("Prefer small changes."));
+  } finally { screen.renderer.destroy(); }
+});
+
+test("tool definition previews show readable descriptions and a formatted input schema", async () => {
+  const sample = structuredClone(report);
+  sample.snapshot!.entries[1].preview = JSON.stringify({ name: "read", description: "Read a file.\nReturns its text.",
+    input: { type: "object", properties: { path: { type: "string" } } } });
+  const screen = await testRender(() => <AtlasView report={sample} loading={false} error={null}
+    foreground="#eeeeee" muted="#999999" background="#1b1b23" onClose={() => {}} onRefresh={() => {}} />,
+    { width: 88, height: 35 });
+  try {
+    await screen.renderOnce();
+    screen.mockInput.pressArrow("down");
+    screen.mockInput.pressEnter();
+    await screen.renderOnce();
+    screen.mockInput.pressEnter();
+    await screen.renderOnce();
+    const frame = screen.captureCharFrame();
+    assert.ok(frame.includes("Input schema"));
+    assert.ok(frame.includes("Returns its text."));
+    assert.ok(!frame.includes("\\nReturns"));
+  } finally { screen.renderer.destroy(); }
+});

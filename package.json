@@ -1,0 +1,39 @@
+{
+  "name": "opencode-context-atlas",
+  "version": "0.1.0",
+  "description": "A Claude Code-inspired context map for OpenCode v2",
+  "type": "module",
+  "license": "MIT",
+  "repository": "github:LerikP/opencode-context-atlas",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tui": "./src/tui.tsx"
+  },
+  "files": ["src", "index.ts", "tui.tsx", "README.md", "LICENSE"],
+  "scripts": {
+    "test": "npm run test:core && npm run test:tui",
+    "test:core": "tsx --test test/*.test.ts",
+    "test:tui": "bun test --preload @opentui/solid/preload test/*.test.tsx",
+    "typecheck": "tsc --noEmit",
+    "demo": "tsx dev/runtime.ts",
+    "preview": "bun --preload @opentui/solid/preload dev/preview.tsx"
+  },
+  "dependencies": {
+    "@opencode/plugin": "2.0.22",
+    "js-tiktoken": "1.0.21",
+    "zod": "4.1.8"
+  },
+  "devDependencies": {
+    "@opentui/core": "0.5.14",
+    "@opentui/solid": "0.5.14",
+    "@types/node": "^24.10.1",
+    "solid-js": "1.9.12",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.5.14",
+    "@opentui/solid": ">=0.5.14",
+    "solid-js": ">=1.9.0"
+  }
+}
