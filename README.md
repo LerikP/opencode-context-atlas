@@ -33,9 +33,36 @@ or make a model call.
 
 ## Install
 
-Requires **OpenCode 2.0.22** (the tested SDK/runtime). OpenCode 1 is not supported.
+Requires **OpenCode v2, version 2.0.22 or newer** (tested with 2.0.22).
+OpenCode 1 is not supported.
 
-Clone this repository and install its dependencies:
+### Quick install — no Node.js required
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/LerikP/opencode-context-atlas/main/install.sh | sh
+```
+
+The shell installer finds a compatible `opencode` or `opencode2` executable and
+uses OpenCode's built-in package installer. You do **not** need to install Node.js,
+npm or Bun separately. OpenCode fetches the plugin and its dependencies and adds
+it to the global configuration. Repeating the command does not duplicate the entry.
+
+For an OpenCode executable outside `PATH`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/LerikP/opencode-context-atlas/main/install.sh |
+  OPENCODE_BIN=/absolute/path/to/opencode-v2 sh
+```
+
+You can also invoke the underlying command directly:
+
+```sh
+opencode plugin add github:LerikP/opencode-context-atlas
+```
+
+### Install from a checkout — development
+
+This option needs Node.js/npm for dependency installation:
 
 ```sh
 git clone https://github.com/LerikP/opencode-context-atlas.git
@@ -43,7 +70,7 @@ cd opencode-context-atlas
 npm ci
 ```
 
-Add the **absolute checkout path** to `plugins` in your OpenCode v2
+For a checkout installation, add the **absolute checkout path** to `plugins` in your OpenCode v2
 `opencode.json` or `opencode.jsonc`. This loads the server capture hook and the TUI
 entry point together:
 
@@ -54,7 +81,9 @@ entry point together:
 }
 ```
 
-To replace the built-in sidebar context indicator, add this directive to your
+### Sidebar indicator
+
+For either installation method, to replace the built-in sidebar context indicator, add this directive to your
 global **`cli.json`** (usually `~/.config/opencode/cli.json`):
 
 ```jsonc
@@ -131,7 +160,8 @@ npm run preview
 ```
 
 `test:core` checks attribution, token conservation, bounded previews, session
-isolation and grid allocation. `test:tui` uses the real OpenTUI renderer for
+isolation, grid allocation and the shell installer (with Node.js/npm/Bun absent
+from the installer's `PATH`). `test:tui` uses the real OpenTUI renderer for
 keyboard navigation, mouse inspection, resizing, refresh and session switching.
 
 ### Isolated OpenCode demo
