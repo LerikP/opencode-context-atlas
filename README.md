@@ -183,7 +183,7 @@ To choose the initial mode, set `options.symbols` on an explicit TUI plugin entr
     "-opencode.sidebar.context",
     {
       "package": "github:LerikP/opencode-context-atlas",
-      "options": { "symbols": "unicode" }
+      "options": { "symbols": "nerd-font" }
     }
   ]
 }
