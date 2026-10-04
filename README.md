@@ -164,6 +164,10 @@ isolation, grid allocation and the shell installer (with Node.js/npm/Bun absent
 from the installer's `PATH`). `test:tui` uses the real OpenTUI renderer for
 keyboard navigation, mouse inspection, resizing, refresh and session switching.
 
+GitHub Actions runs dependency installation, shell syntax validation, TypeScript
+checking and both test suites on pushes and pull requests. The **Check** workflow
+also supports manual runs from the Actions tab.
+
 ### Isolated OpenCode demo
 
 Point `OPENCODE_V2_BINARY` at an OpenCode 2.0.22 executable, then:
