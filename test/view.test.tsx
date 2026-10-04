@@ -5,7 +5,7 @@ import type { TextRenderable } from "@opentui/core";
 import { createSignal } from "solid-js";
 import { AtlasView } from "../src/view.tsx";
 import { cellSymbol } from "../src/map.ts";
-import { categoryKeys, type Report } from "../src/report.ts";
+import { categories, categoryKeys, type Report } from "../src/report.ts";
 
 const report: Report = { sessionID: "demo", limit: 200000, snapshot: {
   model: "test/model", capturedAt: 1000, total: 30000, notes: [], entries: [
@@ -134,3 +134,45 @@ test("category glyphs occupy one terminal column in OpenTUI", async () => {
     }
   } finally { screen.renderer.destroy(); }
 });
+
+for (const category of categoryKeys) {
+  test(`${category}: click the category to return to its list, then the arrow to return to the map`, async () => {
+    let closed = false;
+    const sample: Report = { sessionID: "demo", limit: 1000, snapshot: {
+      capturedAt: 0, model: "test/model", total: 10, notes: [], entries: [
+        { id: category, category, name: "Example source", tokens: 10, bytes: 20,
+          preview: "Example source contents", truncated: false },
+      ],
+    } };
+    const screen = await testRender(() => <AtlasView report={sample} loading={false} error={null}
+      foreground="#eeeeee" muted="#999999" background="#1b1b23" onClose={() => { closed = true; }} onRefresh={() => {}} />,
+      { width: 88, height: 35 });
+    try {
+      await screen.renderOnce();
+      screen.mockInput.pressEnter();
+      await screen.renderOnce();
+      screen.mockInput.pressEnter();
+      await screen.renderOnce();
+      assert.ok(screen.captureCharFrame().includes("Example source contents"));
+      const label = categories[category].label;
+      let lines = screen.captureCharFrame().split("\n");
+      let row = lines.findIndex((line) => line.includes(`‹ ${label}`));
+      assert.ok(row >= 0);
+      const column = lines[row].indexOf(label);
+      await screen.mockMouse.pressDown(column, row);
+      await screen.renderOnce();
+      assert.ok(screen.captureCharFrame().includes("Example source contents"), "navigation waits for release");
+      await screen.mockMouse.release(column, row);
+      await screen.renderOnce();
+      assert.ok(!screen.captureCharFrame().includes("Example source contents"), "category click returns to its source list");
+      assert.ok(screen.captureCharFrame().includes("Example source"));
+      assert.ok(screen.captureCharFrame().includes("1 sources"));
+      lines = screen.captureCharFrame().split("\n");
+      row = lines.findIndex((line) => line.includes(`‹ ${label}`));
+      await screen.mockMouse.click(lines[row].indexOf("‹"), row);
+      await screen.renderOnce();
+      assert.ok(screen.captureCharFrame().includes("Free space"), "arrow returns to the context map");
+      assert.equal(closed, false, "breadcrumb navigation does not close the inspector");
+    } finally { screen.renderer.destroy(); }
+  });
+}

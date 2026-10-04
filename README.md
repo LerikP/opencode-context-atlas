@@ -40,6 +40,9 @@ are illustrative demo data.
 - **Click `Atlas ↗`** in the sidebar — open the same inspector.
 - Click a colored cell or a category, or use **↑/↓ and Enter**, to inspect its sources.
 - Select a source to read its captured text. **Esc** goes back, then closes.
+- Click the **category name** in the source header (for example, **Skill catalogue**)
+  to return to its source list. Click **‹** to go back one level: source → list →
+  context map. This works in every category and keeps the inspector open.
 - **`r`** refreshes. Long lists and source previews scroll; narrow terminals stack
   the map above the legend.
 - **Click `Symbols`** in the footer, or press **`s`**, to cycle Blocks → Unicode →

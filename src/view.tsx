@@ -109,9 +109,22 @@ export function AtlasView(props: AtlasViewProps) {
       <Show when={snapshot()}>
         <Show when={!category()} fallback={
           <box flexDirection="column" gap={1}>
-            <text fg={categories[category()!]?.color}>
-              {`‹ ${categories[category()!]?.label}${entry() ? ` / ${safeText(entry()!.name)}` : `  ·  ${entries().length} sources`}`}
-            </text>
+            <box flexDirection="row" flexShrink={0}>
+              <text fg={categories[category()!]?.color} onMouseUp={(event) => {
+                if (event.button !== MouseButton.LEFT) return;
+                event.stopPropagation();
+                back();
+              }}>‹ </text>
+              <text fg={categories[category()!]?.color} flexShrink={0} onMouseUp={(event) => {
+                if (event.button !== MouseButton.LEFT) return;
+                event.stopPropagation();
+                setEntryID(null);
+                resetSelection();
+              }}>{categories[category()!]?.label}</text>
+              <text fg={categories[category()!]?.color} flexShrink={1}>
+                {entry() ? ` / ${safeText(entry()!.name)}` : `  ·  ${entries().length} sources`}
+              </text>
+            </box>
             <Show when={entry()} fallback={
               <box flexDirection="column">
                 <For each={entries()}>{(item, index) =>
