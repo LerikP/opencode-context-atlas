@@ -4,18 +4,26 @@ A Claude Code-inspired **context map for OpenCode v2**. See what occupies your
 context window, then drill into the actual rules, skills, tool definitions and
 messages behind the numbers.
 
-![Context Atlas rendered by OpenTUI, with illustrative demo data](docs/preview.svg)
+![Context Atlas showing the context map, category usage and connected Context7 MCP](docs/screenshot-overview.png)
 
 <details>
-<summary>Frames from a running OpenCode 2.0.22 demo</summary>
+<summary>Inspect loaded skills and MCP sources</summary>
 
-These are cropped framebuffer exports from the live TUI, rasterized to PNG;
-they are not macOS window captures. The local fixture provider supplies the demo
-conversation and illustrative provider usage.
+These are native terminal screenshots from OpenCode 2.0.22. Context7 is connected
+to its live MCP server; the conversation, rules, loaded skill and provider usage
+are illustrative demo data.
 
-![Context overview](docs/screenshot-overview.png)
-![Individual tool definitions](docs/screenshot-tools.png)
-![Readable source inspector](docs/screenshot-source.png)
+### Loaded skills
+
+![Loaded skills and their estimated context usage](docs/screenshot-loaded-skills.png)
+
+### Skill contents
+
+![Reading the captured contents of the ui-review skill](docs/screenshot-skill-content.png)
+
+### MCP sources
+
+![Context7 tool definitions and MCP instructions in their own category](docs/screenshot-mcp.png)
 
 </details>
 
