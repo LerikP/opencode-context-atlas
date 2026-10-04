@@ -4,7 +4,10 @@ A Claude Code-inspired **context map for OpenCode v2**. See what occupies your
 context window, then drill into the actual rules, skills, tool definitions and
 messages behind the numbers.
 
-![Context Atlas showing the context map, category usage and connected Context7 MCP](docs/screenshot-overview.png)
+![Context Atlas with default Nerd Font icons, category usage and the Symbols switch](docs/screenshot-overview-nerd-font.png)
+
+**Nerd Font icons are the default.** Select a Nerd Font Mono in your terminal,
+or use the **Symbols** button / **`s`** to switch to Unicode or plain blocks.
 
 <details>
 <summary>Inspect loaded skills and MCP sources</summary>
@@ -25,6 +28,10 @@ are illustrative demo data.
 
 ![Context7 tool definitions and MCP instructions in their own category](docs/screenshot-mcp.png)
 
+### MCP instructions
+
+![Inspecting the instructions supplied by the connected Context7 server](docs/screenshot-mcp-instructions.png)
+
 </details>
 
 ## Open it
@@ -35,6 +42,8 @@ are illustrative demo data.
 - Select a source to read its captured text. **Esc** goes back, then closes.
 - **`r`** refreshes. Long lists and source previews scroll; narrow terminals stack
   the map above the legend.
+- **Click `Symbols`** in the footer, or press **`s`**, to cycle Blocks → Unicode →
+  Nerd Font. The map and sidebar update together, and your choice is saved.
 
 The command is a local TUI action. Opening the inspector does not send a prompt
 or make a model call.
@@ -44,7 +53,7 @@ or make a model call.
 The sidebar shows a compact context map and estimated usage. Click **Atlas ↗**
 to open the full inspector shown above.
 
-![Atlas context indicator in the main window sidebar, with Context7 connected](docs/screenshot-sidebar.png)
+![Atlas sidebar with default Nerd Font icons and Context7 connected](docs/screenshot-sidebar-nerd-font.png)
 
 ## Install
 
@@ -116,6 +125,80 @@ For a remote server, install the server entry there and configure this package
 in the client's `cli.json` as well. Atlas's RPC retrieves the snapshot from the
 server; it does not assume a shared filesystem. Remote deployment has not yet
 been exercised end to end.
+
+## Category symbols
+
+Use the **`[s Symbols: …]`** button at the bottom of the inspector, or press **`s`**,
+to switch modes immediately. The selected mode is stored in OpenCode's plugin
+storage and survives closing the dialog and restarting OpenCode. No config edit
+or restart is needed when using the button.
+
+### Compare the modes
+
+The main screenshot above shows the default **Nerd Font** mode. Switching symbols
+also updates the sidebar without changing the token counts or category colors.
+
+<details>
+<summary>Unicode symbols and plain blocks</summary>
+
+**Unicode** — distinct symbols without an icon font:
+
+![Context map with Unicode symbols and the Symbols button](docs/screenshot-overview-unicode.png)
+![Sidebar with Unicode category symbols](docs/screenshot-sidebar-unicode.png)
+
+**Blocks** — the original color-only presentation:
+
+![Context map with plain colored blocks](docs/screenshot-overview-blocks.png)
+![Sidebar with plain colored blocks](docs/screenshot-sidebar-blocks.png)
+
+</details>
+
+### Configured default
+
+To choose the initial mode, set `options.symbols` on an explicit TUI plugin entry in your global **`cli.json`**
+(usually `~/.config/opencode/cli.json`):
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "plugins": [
+    "-opencode.sidebar.context",
+    {
+      "package": "github:LerikP/opencode-context-atlas",
+      "options": { "symbols": "unicode" }
+    }
+  ]
+}
+```
+
+If this package is already listed in `cli.json`, replace its string entry with
+the object above. Keep the server plugin entry in `opencode.json(c)` for context
+capture. OpenCode 2.0.22 auto-discovers its TUI entry but does not forward options
+from the server configuration; an explicit `cli.json` entry supplies them and
+takes precedence. For a checkout installation, use your existing local path as
+`package`.
+
+A saved choice from the button takes precedence over this configured default.
+Use the button again to change it.
+
+| `symbols` | Display | Font requirement |
+| --- | --- | --- |
+| `"nerd-font"` (default) | Microchip, document, book, bookmark, wrench, plug, comment, code-file, lightbulb and ellipsis icons | A **Nerd Font Mono** selected in your terminal |
+| `"unicode"` | A different symbol for each category | A font covering the Unicode symbols below; no icon font required |
+| `"blocks"` | Colored blocks | Normal terminal font |
+
+The Unicode legend is **◆** system, **≡** rules, **◇** skill catalogue,
+**◈** loaded skills, **⌘** tools, **⇄** MCP, **●** messages, **▤** tool results,
+**∴** reasoning and **+** other. The map, legend and sidebar use the same category
+symbols; colors and token accounting are unchanged.
+
+For Nerd Font icons, select a font such as **JetBrainsMono Nerd Font Mono** in
+your terminal settings and use `"symbols": "nerd-font"`. Installing a font alone
+does not select it for the terminal. OpenCode cannot report which font or glyphs
+the terminal supports, so Atlas does not auto-detect font availability. If icons
+appear as empty squares or overlap, choose `"unicode"` or `"blocks"` instead.
+Unrecognized option values fall back to blocks. Restart OpenCode after changing
+plugin options.
 
 ## What is counted
 
