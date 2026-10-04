@@ -1,5 +1,6 @@
 import { Plugin } from "@opencode/plugin/tui";
 import type { Context } from "@opencode/plugin/tui/context";
+import { MouseButton } from "@opentui/core";
 import { For, createMemo, createResource, onCleanup } from "solid-js";
 import { atlasRpc } from "./rpc.ts";
 import { categories, reportSchema, type Report } from "./report.ts";
@@ -82,7 +83,11 @@ function Dialog(props: { context: Context; sessionID: string }) {
 function Indicator(props: { context: Context; sessionID: string; onOpen: () => void }) {
   const state = useReport(props.context, () => props.sessionID);
   const cells = () => windowMap(state.report()?.snapshot ?? null, state.report()?.limit ?? null, 20);
-  return <box flexDirection="column" gap={0} marginBottom={1} onMouseDown={props.onOpen}>
+  return <box flexDirection="column" gap={0} marginBottom={1} onMouseUp={(event) => {
+    if (event.button !== MouseButton.LEFT) return;
+    event.stopPropagation();
+    props.onOpen();
+  }}>
     <box flexDirection="row" justifyContent="space-between">
       <text fg={props.context.theme.text.base}><b>Context</b></text>
       <text fg="#e5b567">Atlas ↗</text>

@@ -71,3 +71,52 @@ test("switching sessions never displays the previous session's snapshot while RP
     assert.ok(!screen.captureCharFrame().includes("12.3k"), "old session usage must not leak into another sidebar");
   } finally { screen.renderer.destroy(); await cleanup?.(); }
 });
+
+test("Atlas opens on left-button release and remains open after a complete click", async () => {
+  const slots: SlotClaim[] = [];
+  const [dialog, setDialog] = createSignal<(() => JSX.Element) | null>(null);
+  let onClose: (() => void) | undefined;
+  const close = () => { onClose?.(); setDialog(null); };
+  const host = {
+    options: {}, theme: { text: { base: "#eeeeee", muted: "#999999" }, background: { base: "#15151a" } },
+    client: { rpc: () => ({ report: async ({ sessionID }: { sessionID: string }) => ({ sessionID, limit: 200000, snapshot: null }) }) },
+    data: { session: { message: { list: () => [] } } },
+    keymap: { layer: () => {} },
+    ui: {
+      slot: (slot: SlotClaim) => { slots.push(slot); return () => {}; },
+      dialog: { set: () => {}, show: (render: () => JSX.Element, callback: () => void) => {
+        onClose = callback;
+        setDialog(() => render);
+      }, clear: close },
+    },
+  } as unknown as Context;
+  const cleanup = await tui.setup(host);
+  const screen = await testRender(() => <box width="100%" height="100%">
+    <box width={25} flexDirection="column">
+      {slots.filter((slot) => slot.prepend === "sidebar.content").map((slot) => slot.render({ sessionID: "current-session" } as never))}
+    </box>
+    {dialog() && <box position="absolute" width="100%" height="100%" onMouseUp={close}>
+      <box position="absolute" left={28} top={2} width={70} onMouseUp={(event) => event.stopPropagation()}>
+        {dialog()?.()}
+      </box>
+    </box>}
+  </box>, { width: 100, height: 35 });
+  try {
+    await screen.renderOnce();
+    const lines = screen.captureCharFrame().split("\n");
+    const row = lines.findIndex((line) => line.includes("Atlas ↗"));
+    assert.ok(row >= 0);
+    const column = lines[row].indexOf("Atlas ↗");
+    await screen.mockMouse.pressDown(column, row);
+    await screen.renderOnce();
+    assert.equal(dialog(), null, "holding the button must not open an overlay under the pointer");
+    await screen.mockMouse.release(column, row);
+    await screen.renderOnce();
+    assert.ok(screen.captureCharFrame().includes("Context Atlas"), "releasing the button opens a persistent dialog");
+    close();
+    await screen.renderOnce();
+    await screen.mockMouse.click(column, row, 2);
+    await screen.renderOnce();
+    assert.equal(dialog(), null, "right-click must not open Atlas");
+  } finally { screen.renderer.destroy(); await cleanup?.(); }
+});
