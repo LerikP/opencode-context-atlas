@@ -39,6 +39,13 @@ are illustrative demo data.
 The command is a local TUI action. Opening the inspector does not send a prompt
 or make a model call.
 
+### In the main window
+
+The sidebar shows a compact context map and estimated usage. Click **Atlas ↗**
+to open the full inspector shown above.
+
+![Atlas context indicator in the main window sidebar, with Context7 connected](docs/screenshot-sidebar.png)
+
 ## Install
 
 Requires **OpenCode v2, version 2.0.22 or newer** (tested with 2.0.22).
