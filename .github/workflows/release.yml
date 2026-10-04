@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to validate (dry run only; does not publish a release)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Match tag to package and lockfile
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const tag = process.env.RELEASE_TAG;
+          assert.match(tag, /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/, 'Expected a stable vX.Y.Z tag');
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
+          assert.equal(tag, `v${pkg.version}`, 'Tag must match package.json');
+          assert.equal(lock.version, pkg.version, 'Lockfile version must match');
+          assert.equal(lock.packages[''].version, pkg.version, 'Root lockfile package must match');
+          console.log(`Validated ${tag}`);
+          JS
+
+  check:
+    needs: validate
+    uses: ./.github/workflows/check.yml
+    permissions:
+      contents: read
+
+  publish:
+    name: Publish GitHub Release
+    needs: [validate, check]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Create release with installation instructions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_COMMIT: ${{ github.sha }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            --verify-tag \
+            --target "$RELEASE_COMMIT" \
+            --title "Context Atlas $RELEASE_TAG" \
+            --generate-notes \
+            --notes "Install this version (OpenCode v2 ≥ 2.0.22; no separate Node.js required):
+
+          \`opencode plugin add github:${GH_REPO}#${RELEASE_TAG}\`
+
+          Restart OpenCode, send one message, and open \`/context\`."

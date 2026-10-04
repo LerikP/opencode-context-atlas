@@ -84,6 +84,21 @@ You can also invoke the underlying command directly:
 opencode plugin add github:LerikP/opencode-context-atlas
 ```
 
+### Pin a release
+
+For a fixed version, pick an existing tag from [GitHub Releases](https://github.com/LerikP/opencode-context-atlas/releases)
+and install it with OpenCode's built-in installer:
+
+```sh
+# Replace vX.Y.Z with an existing release tag.
+opencode plugin add 'github:LerikP/opencode-context-atlas#vX.Y.Z'
+```
+
+If Atlas is already installed, replace its existing `plugins` entry with the
+tagged specification instead of keeping both tagged and untagged entries. Use
+the same specification in `cli.json` if you configured an explicit TUI entry.
+To roll back, replace it with an earlier release tag and restart OpenCode.
+
 ### Install from a checkout — development
 
 This option needs Node.js/npm for dependency installation:
@@ -265,6 +280,30 @@ keyboard navigation, mouse inspection, resizing, refresh and session switching.
 GitHub Actions runs dependency installation, shell syntax validation, TypeScript
 checking and both test suites on pushes and pull requests. The **Check** workflow
 also supports manual runs from the Actions tab.
+
+### Releases
+
+The **Release** workflow runs on tags matching `v*`. It accepts stable `vX.Y.Z`
+tags only, verifies the version against `package.json` and both root versions in
+`package-lock.json`, then runs the same checks as the **Check** workflow.
+Only after these pass does it create a GitHub Release with generated notes and
+a version-pinned installation command. No npm publication or separate build is
+needed: OpenCode loads the TypeScript entry points from the tagged Git package.
+
+To prepare a release, update the package version and lockfile, commit and push
+that change, then create and push its matching tag:
+
+```sh
+npm version 0.2.0 --no-git-tag-version
+# Review, commit and push the version change before tagging.
+git tag -a v0.2.0 -m 'Context Atlas v0.2.0'
+git push origin v0.2.0
+```
+
+The workflow's manual **Run workflow** action validates the supplied tag against
+the selected ref and runs the checks, but **never publishes** a release. It can
+be used to check release readiness before creating the tag. Published tags
+should remain fixed; ship corrections under a new version.
 
 ### Isolated OpenCode demo
 
