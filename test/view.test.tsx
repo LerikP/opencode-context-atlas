@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { testRender } from "@opentui/solid";
+import type { TextRenderable } from "@opentui/core";
 import { createSignal } from "solid-js";
 import { AtlasView } from "../src/view.tsx";
-import type { Report } from "../src/report.ts";
+import { cellSymbol } from "../src/map.ts";
+import { categoryKeys, type Report } from "../src/report.ts";
 
 const report: Report = { sessionID: "demo", limit: 200000, snapshot: {
   model: "test/model", capturedAt: 1000, total: 30000, notes: [], entries: [
@@ -115,5 +117,20 @@ test("tool definition previews show readable descriptions and a formatted input 
     assert.ok(frame.includes("Input schema"));
     assert.ok(frame.includes("Returns its text."));
     assert.ok(!frame.includes("\\nReturns"));
+  } finally { screen.renderer.destroy(); }
+});
+
+test("category glyphs occupy one terminal column in OpenTUI", async () => {
+  const glyphs = ["unicode", "nerd-font"].flatMap((mode) => categoryKeys.map((key) => cellSymbol(key, mode)));
+  const rendered: TextRenderable[] = [];
+  const screen = await testRender(() => <box flexDirection="row">
+    {glyphs.map((glyph) => <text ref={(node) => { rendered.push(node); }}>{glyph}</text>)}
+  </box>, { width: 80, height: 3 });
+  try {
+    await screen.renderOnce();
+    assert.equal(rendered.length, glyphs.length);
+    for (const [index, node] of rendered.entries()) {
+      assert.equal(node.width, 1, `${glyphs[index]} must not stretch the context grid`);
+    }
   } finally { screen.renderer.destroy(); }
 });

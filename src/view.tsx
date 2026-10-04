@@ -1,19 +1,21 @@
 import { For, Show, createMemo, createSignal, onMount } from "solid-js";
 import { useTerminalDimensions } from "@opentui/solid";
-import type { BoxRenderable, ScrollBoxRenderable } from "@opentui/core";
+import { MouseButton, type BoxRenderable, type ScrollBoxRenderable } from "@opentui/core";
 import { categories, categoryKeys, type Category, type Entry, type Report } from "./report.ts";
-import { windowMap } from "./map.ts";
+import { cellSymbol, windowMap, type SymbolMode } from "./map.ts";
 
 export interface AtlasViewProps {
   report: Report | null;
   loading: boolean;
   error: string | null;
   providerTotal?: number;
+  symbols?: SymbolMode;
   foreground: string;
   muted: string;
   background: string;
   onClose: () => void;
   onRefresh: () => void;
+  onCycleSymbols?: () => void;
   registerBack?: (back: () => void) => void;
 }
 
@@ -30,6 +32,7 @@ export function AtlasView(props: AtlasViewProps) {
   const limit = () => props.report?.limit;
   const width = () => measuredWidth() || terminal().width - 8;
   const wide = () => width() >= 76;
+  const symbolLabel = () => props.symbols === "unicode" ? "Unicode" : (props.symbols ?? "nerd-font") === "nerd-font" ? "Nerd Font" : "Blocks";
   const columns = () => wide() ? 18 : Math.max(8, Math.min(24, Math.floor((width() - 4) / 2)));
   const gridRows = () => wide() ? 10 : 4;
   const cells = createMemo(() => windowMap(snapshot() ?? null, limit() ?? null, columns() * gridRows()));
@@ -38,6 +41,11 @@ export function AtlasView(props: AtlasViewProps) {
   })).filter((row) => row.tokens > 0));
   const entries = createMemo(() => (snapshot()?.entries ?? []).filter((item) => item.category === category())
     .sort((left, right) => right.tokens - left.tokens));
+  const legendMarker = (key: Category, index: number) => {
+    const glyph = cellSymbol(key, props.symbols);
+    if (glyph === "▪") return selected() === index ? "›" : glyph;
+    return `${selected() === index ? "› " : "  "}${glyph}`;
+  };
   const count = () => category() ? entries().length : totals().length;
   const resetSelection = () => { setSelected(0); scroll?.scrollTo(0); };
   const back = () => {
@@ -65,6 +73,7 @@ export function AtlasView(props: AtlasViewProps) {
       if (event.name === "escape" || event.name === "left" || event.name === "backspace") back();
       else if (event.name === "return" || event.name === "right") openSelected();
       else if (event.name === "r") props.onRefresh();
+      else if (event.name === "s" && !event.ctrl && !event.meta && !event.option && !event.super && props.onCycleSymbols) props.onCycleSymbols();
       else if ((event.name === "down" || event.name === "j") && !entry()) {
         setSelected((value) => Math.min(Math.max(0, count() - 1), value + 1));
         if (category()) scroll?.scrollTo(Math.max(0, selected() - 3));
@@ -129,7 +138,7 @@ export function AtlasView(props: AtlasViewProps) {
                     <text fg={cell === "free" || cell === "unknown" ? props.muted : categories[cell].color}
                       opacity={cell === "free" ? 0.35 : 1}
                       onMouseDown={() => { if (cell !== "free" && cell !== "unknown") chooseCategory(cell); }}>
-                      {cell === "free" ? "▫ " : cell === "unknown" ? "· " : "▪ "}
+                      {`${cellSymbol(cell, props.symbols)} `}
                     </text>
                   }</For>
                 </box>
@@ -140,7 +149,7 @@ export function AtlasView(props: AtlasViewProps) {
               <For each={totals()}>{(row, index) =>
                 <box flexDirection="row" justifyContent="space-between" gap={1}
                   onMouseDown={() => chooseCategory(row.key)}>
-                  <text fg={categories[row.key].color}>{`${selected() === index() ? "›" : "▪"} ${categories[row.key].label}`}</text>
+                  <text fg={categories[row.key].color}>{`${legendMarker(row.key, index())} ${categories[row.key].label}`}</text>
                   <text fg={props.foreground}>{`~${formatTokens(row.tokens)}${limit() ? `  ${(row.tokens / limit()! * 100).toFixed(1)}%`.padStart(8) : ""}`}</text>
                 </box>
               }</For>
@@ -163,9 +172,19 @@ export function AtlasView(props: AtlasViewProps) {
         </Show>
       </Show>
     </scrollbox>
-    <box flexDirection="row" justifyContent="space-between" marginTop={1} flexShrink={0}>
+    <box flexDirection={width() >= 72 ? "row" : "column"} justifyContent="space-between"
+      gap={width() >= 72 ? 0 : 1} marginTop={1} flexShrink={0}>
       <text fg={props.muted}>{entry() ? "↑↓ scroll · esc back" : "↑↓ select · enter inspect"}</text>
-      <text fg="#e5b567" onMouseDown={props.onRefresh}>{props.loading ? "loading…" : "r refresh"}</text>
+      <box flexDirection="row" gap={2} justifyContent="space-between">
+        <Show when={props.onCycleSymbols}>
+          <text fg="#e5b567" onMouseUp={(event) => {
+            if (event.button !== MouseButton.LEFT) return;
+            event.stopPropagation();
+            props.onCycleSymbols?.();
+          }}>{`[s Symbols: ${symbolLabel()}]`}</text>
+        </Show>
+        <text fg="#e5b567" onMouseDown={props.onRefresh}>{props.loading ? "loading…" : "r refresh"}</text>
+      </box>
     </box>
   </box>;
 }

@@ -4,23 +4,37 @@ import { MouseButton } from "@opentui/core";
 import { For, createMemo, createResource, onCleanup } from "solid-js";
 import { atlasRpc } from "./rpc.ts";
 import { categories, reportSchema, type Report } from "./report.ts";
-import { windowMap } from "./map.ts";
+import { cellSymbol, windowMap, type SymbolMode } from "./map.ts";
 import { AtlasView, formatTokens } from "./view.tsx";
 
 export default Plugin.define({
   id: "context-atlas.tui",
   setup(context) {
+    const [appearance, saveAppearance] = context.storage.store<{ symbols: SymbolMode | null }>("appearance", {
+      initial: { symbols: null },
+    });
+    const symbols = (): SymbolMode => {
+      const value = appearance.symbols ?? context.options.symbols ?? "nerd-font";
+      return value === "unicode" || value === "nerd-font" ? value : "blocks";
+    };
+    const cycleSymbols = () => {
+      void saveAppearance((draft) => {
+        const value = draft.symbols ?? context.options.symbols ?? "nerd-font";
+        draft.symbols = value === "unicode" ? "nerd-font" : value === "nerd-font" ? "blocks" : "unicode";
+      }).catch(() => context.ui.toast.show({ message: "Could not save the symbol preference. Try again.", variant: "error" }));
+    };
     let opened = false;
     const open = (sessionID: string) => {
       if (opened) return;
       opened = true;
-      context.ui.dialog.show(() => <Dialog context={context} sessionID={sessionID} />, () => { opened = false; });
+      context.ui.dialog.show(() => <Dialog context={context} sessionID={sessionID} symbols={symbols()} onCycleSymbols={cycleSymbols} />,
+        () => { opened = false; });
       // show() replaces the host dialog and resets its presentation defaults.
       context.ui.dialog.set({ size: "large", centered: true });
     };
     const stopSidebar = context.ui.slot({
       prepend: "sidebar.content",
-      render: (input) => <Indicator context={context} sessionID={input.sessionID} onOpen={() => open(input.sessionID)} />,
+      render: (input) => <Indicator context={context} sessionID={input.sessionID} symbols={symbols()} onOpen={() => open(input.sessionID)} />,
     });
     const stopCommand = context.ui.slot({
       append: "app",
@@ -67,9 +81,10 @@ function useReport(context: Context, sessionID: () => string) {
     refresh: () => { void refetch(); } };
 }
 
-function Dialog(props: { context: Context; sessionID: string }) {
+function Dialog(props: { context: Context; sessionID: string; symbols: SymbolMode; onCycleSymbols: () => void }) {
   const state = useReport(props.context, () => props.sessionID);
   return <AtlasView report={state.report()} loading={state.loading()} error={state.error()}
+    symbols={props.symbols} onCycleSymbols={props.onCycleSymbols}
     providerTotal={providerInput(props.context, props.sessionID)}
     foreground={props.context.theme.text.base} muted={props.context.theme.text.muted}
     background={props.context.theme.background.base}
@@ -80,7 +95,7 @@ function Dialog(props: { context: Context; sessionID: string }) {
     onClose={() => props.context.ui.dialog.clear()} onRefresh={state.refresh} />;
 }
 
-function Indicator(props: { context: Context; sessionID: string; onOpen: () => void }) {
+function Indicator(props: { context: Context; sessionID: string; symbols: SymbolMode; onOpen: () => void }) {
   const state = useReport(props.context, () => props.sessionID);
   const cells = () => windowMap(state.report()?.snapshot ?? null, state.report()?.limit ?? null, 20);
   return <box flexDirection="column" gap={0} marginBottom={1} onMouseUp={(event) => {
@@ -94,7 +109,7 @@ function Indicator(props: { context: Context; sessionID: string; onOpen: () => v
     </box>
     <text>
       <For each={cells()}>{(cell) => <span style={{ fg: cell === "free" || cell === "unknown"
-        ? props.context.theme.text.muted : categories[cell].color }}>{cell === "free" ? "░" : cell === "unknown" ? "·" : "━"}</span>}</For>
+        ? props.context.theme.text.muted : categories[cell].color }}>{cellSymbol(cell, props.symbols, "sidebar")}</span>}</For>
     </text>
     <text fg={props.context.theme.text.muted}>{indicatorLabel(state.report(), state.loading())}</text>
   </box>;

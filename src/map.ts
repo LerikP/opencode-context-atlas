@@ -1,6 +1,30 @@
-import { categoryKeys, type Category, type Snapshot } from "./report.ts";
+import { categories, categoryKeys, type Category, type Snapshot } from "./report.ts";
 
 export type Cell = Category | "free" | "unknown";
+export type SymbolMode = "blocks" | "unicode" | "nerd-font";
+
+// Font Awesome codepoints in Nerd Fonts Mono. Terminal font coverage is not
+// exposed by OpenTUI; users without glyph coverage can select Unicode or blocks.
+const nerdSymbols: Record<Category, string> = {
+  system: "\uf2db", // microchip
+  rules: "\uf0f6", // file-text
+  skills: "\uf02d", // book
+  loaded: "\uf02e", // bookmark
+  tools: "\uf0ad", // wrench
+  mcp: "\uf1e6", // plug
+  messages: "\uf075", // comment
+  results: "\uf1c9", // file-code
+  reasoning: "\uf0eb", // lightbulb
+  other: "\uf141", // ellipsis
+};
+
+export function cellSymbol(cell: Cell, mode: unknown = "nerd-font", surface: "map" | "sidebar" = "map"): string {
+  if (cell === "unknown") return "·";
+  if (cell === "free") return surface === "sidebar" ? "░" : "▫";
+  if (mode === "unicode") return categories[cell].glyph;
+  if (mode === "nerd-font") return nerdSymbols[cell];
+  return surface === "sidebar" ? "━" : "▪";
+}
 
 export function windowMap(snapshot: Snapshot | null, limit: number | null, cells: number): Cell[] {
   const count = Math.max(0, Math.min(1000, Math.floor(cells)));
