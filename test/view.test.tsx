@@ -99,6 +99,39 @@ test("refreshing a snapshot updates an open source preview", async () => {
   } finally { screen.renderer.destroy(); }
 });
 
+test("an open dialog survives the snapshot disappearing and returning", async () => {
+  const [current, update] = createSignal<Report | null>(report);
+  const screen = await testRender(() => <AtlasView report={current()} loading={false} error={null}
+    foreground="#eeeeee" muted="#999999" background="#1b1b23" onClose={() => {}} onRefresh={() => {}} />,
+    { width: 88, height: 35 });
+  try {
+    await screen.renderOnce();
+    assert.ok(screen.captureCharFrame().includes("30.0k"), "the captured request is visible");
+    update({ ...report, snapshot: null });
+    await screen.renderOnce();
+    assert.ok(!screen.captureCharFrame().includes("30.0k"), "a removed snapshot is not rendered as usage");
+    update(null); // a failed or superseded request must not leave stale token counts behind
+    await screen.renderOnce();
+    assert.ok(screen.captureCharFrame().includes("No request captured"));
+    update(report);
+    await screen.renderOnce();
+    assert.ok(screen.captureCharFrame().includes("30.0k"));
+  } finally { screen.renderer.destroy(); }
+});
+
+test("a report whose snapshot is missing is treated as no capture", async () => {
+  const partial = { sessionID: "demo", limit: 200000 } as unknown as Report;
+  const screen = await testRender(() => <AtlasView report={partial} loading={false} error={null}
+    foreground="#eeeeee" muted="#999999" background="#1b1b23" onClose={() => {}} onRefresh={() => {}} />,
+    { width: 88, height: 35 });
+  try {
+    await screen.renderOnce();
+    const frame = screen.captureCharFrame();
+    assert.ok(frame.includes("No request captured"));
+    assert.ok(!frame.includes("tokens /"));
+  } finally { screen.renderer.destroy(); }
+});
+
 test("tool definition previews show readable descriptions and a formatted input schema", async () => {
   const sample = structuredClone(report);
   sample.snapshot!.entries[1].preview = JSON.stringify({ name: "read", description: "Read a file.\nReturns its text.",

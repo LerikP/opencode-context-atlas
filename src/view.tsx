@@ -2,7 +2,7 @@
 import { For, Show, createMemo, createSignal, onMount } from "solid-js";
 import { useTerminalDimensions } from "@opentui/solid";
 import { MouseButton, type BoxRenderable, type ScrollBoxRenderable } from "@opentui/core";
-import { categories, categoryKeys, type Category, type Entry, type Report } from "./report.ts";
+import { categories, categoryKeys, type Category, type Entry, type Report, type Snapshot } from "./report.ts";
 import { cellSymbol, windowMap, type SymbolMode } from "./map.ts";
 
 export interface AtlasViewProps {
@@ -28,7 +28,7 @@ export function AtlasView(props: AtlasViewProps) {
   const [selected, setSelected] = createSignal(0);
   let root: BoxRenderable | undefined;
   let scroll: ScrollBoxRenderable | undefined;
-  const snapshot = () => props.report?.snapshot;
+  const snapshot = (): Snapshot | null => props.report?.snapshot ?? null;
   const entry = () => snapshot()?.entries.find((item) => item.id === entryID()) ?? null;
   const limit = () => props.report?.limit;
   const width = () => measuredWidth() || terminal().width - 8;
@@ -94,11 +94,11 @@ export function AtlasView(props: AtlasViewProps) {
     <text fg={props.muted} flexShrink={0} marginTop={1}>
       {snapshot()?.model ?? "Context window"}
     </text>
-    <Show when={snapshot()}>
-      <text fg={props.foreground} flexShrink={0}>
-        <b>{`~${formatTokens(snapshot()!.total)} / ${limit() ? formatTokens(limit()!) : "?"} tokens`}</b>
-        <span style={{ fg: props.muted }}>{limit() ? `  ·  ${(snapshot()!.total / limit()! * 100).toFixed(1)}% estimated` : "  ·  limit unknown"}</span>
-      </text>
+    <Show when={snapshot()} keyed>
+      {(snap) => <text fg={props.foreground} flexShrink={0}>
+        <b>{`~${formatTokens(snap.total)} / ${limit() ? formatTokens(limit()!) : "?"} tokens`}</b>
+        <span style={{ fg: props.muted }}>{limit() ? `  ·  ${(snap.total / limit()! * 100).toFixed(1)}% estimated` : "  ·  limit unknown"}</span>
+      </text>}
     </Show>
     <Show when={props.loading}><text fg={props.muted}>Refreshing context…</text></Show>
     <Show when={props.error}><text fg="#ef9273">{props.error}</text></Show>
@@ -107,8 +107,8 @@ export function AtlasView(props: AtlasViewProps) {
     </Show>
     <scrollbox ref={(value) => { scroll = value; }} scrollY flexGrow={1} flexShrink={1}
       marginTop={1} verticalScrollbarOptions={{ showArrows: false }}>
-      <Show when={snapshot()}>
-        <Show when={!category()} fallback={
+      <Show when={snapshot()} keyed>
+        {(snap) => <Show when={!category()} fallback={
           <box flexDirection="column" gap={1}>
             <box flexDirection="row" flexShrink={0}>
               <text fg={categories[category()!]?.color} onMouseUp={(event) => {
@@ -169,11 +169,11 @@ export function AtlasView(props: AtlasViewProps) {
               }</For>
               <box flexDirection="row" justifyContent="space-between" gap={1} marginTop={1}>
                 <text fg={props.muted}>▫ Free space</text>
-                <text fg={props.muted}>{limit() ? `~${formatTokens(Math.max(0, limit()! - snapshot()!.total))}` : "unknown"}</text>
+                <text fg={props.muted}>{limit() ? `~${formatTokens(Math.max(0, limit()! - snap.total))}` : "unknown"}</text>
               </box>
             </box>
           </box>
-          <Show when={limit() && snapshot()!.total > limit()!}>
+          <Show when={limit() && snap.total > limit()!}>
             <text fg="#ef9273" marginTop={1}>Estimate exceeds the model window; map is saturated.</text>
           </Show>
           <box flexDirection="column" marginTop={1}>
@@ -181,9 +181,9 @@ export function AtlasView(props: AtlasViewProps) {
             <Show when={props.providerTotal !== undefined}>
               <text fg={props.muted}>{`Provider's last completed input: ${formatTokens(props.providerTotal!)} tokens (including cache).`}</text>
             </Show>
-            <For each={snapshot()!.notes}>{(note) => <text fg="#ef9273">{note}</text>}</For>
+            <For each={snap.notes}>{(note) => <text fg="#ef9273">{note}</text>}</For>
           </box>
-        </Show>
+        </Show>}
       </Show>
     </scrollbox>
     <box flexDirection={width() >= 72 ? "row" : "column"} justifyContent="space-between"
