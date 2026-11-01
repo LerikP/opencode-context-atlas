@@ -1,6 +1,6 @@
 {
   "name": "opencode-context-atlas",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A Claude Code-inspired context map for OpenCode v2",
   "type": "module",
   "license": "MIT",
@@ -9,7 +9,13 @@
     ".": "./src/index.ts",
     "./tui": "./src/tui.tsx"
   },
-  "files": ["src", "index.ts", "tui.tsx", "README.md", "LICENSE"],
+  "files": [
+    "src",
+    "index.ts",
+    "tui.tsx",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "test": "npm run test:core && npm run test:tui",
     "test:core": "tsx --test test/*.test.ts",

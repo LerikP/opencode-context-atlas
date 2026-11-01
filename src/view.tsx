@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { For, Show, createMemo, createSignal, onMount } from "solid-js";
 import { useTerminalDimensions } from "@opentui/solid";
 import { MouseButton, type BoxRenderable, type ScrollBoxRenderable } from "@opentui/core";
