@@ -5,6 +5,7 @@ import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
 import type { Context, KeymapCommand, SlotClaim } from "@opencode/plugin/tui/context";
 import tui from "../src/tui.tsx";
+import compiledTui from "../dist/tui.js";
 
 // The host owns durable storage. Preserve JSON between plugin instances while
 // exercising real Solid reactivity rather than mocking the preference reader.
@@ -265,4 +266,139 @@ test("Symbols button and s cycle the shared mode and restore the choice in a new
     assert.ok(reopened.captureCharFrame().includes("Symbols: Unicode"), "UI choice overrides the configured default after reopening");
     assert.ok(reopened.captureCharFrame().split("\n")[1].includes("≡"));
   } finally { await reopened.close(); }
+});
+
+test("report requests are scoped to the session location", async () => {
+  const slots: SlotClaim[] = [];
+  let seen: { signal?: AbortSignal; location?: unknown } | undefined;
+  const host = {
+    storage: storageFixture(), options: {},
+    theme: { text: { base: "#eeeeee", muted: "#999999" }, background: { base: "#15151a" } },
+    client: { rpc: () => ({ report: async ({ sessionID }: { sessionID: string }, options?: { signal?: AbortSignal; location?: unknown }) => {
+      seen = options;
+      return { sessionID, limit: 200000, snapshot: null };
+    } }) },
+    data: { session: {
+      message: { list: () => [] },
+      get: () => ({ location: { directory: "/workspace/other", workspaceID: "ws-1" } }),
+    } },
+    ui: { slot: (slot: SlotClaim) => { slots.push(slot); return () => {}; } },
+  } as unknown as Context;
+  const cleanup = await tui.setup(host);
+  const screen = await testRender(() => <box flexDirection="column">
+    {slots.filter((slot) => slot.prepend === "sidebar.content").map((slot) => slot.render({ sessionID: "demo" } as never))}
+  </box>, { width: 40, height: 10 });
+  try {
+    await screen.renderOnce();
+    await screen.renderOnce();
+    assert.deepEqual(seen?.location, { directory: "/workspace/other", workspaceID: "ws-1" },
+      "the RPC must not fall back to the server's default location");
+  } finally { screen.renderer.destroy(); await cleanup?.(); }
+});
+
+test("streaming deltas do not restart the report request", async () => {
+  const slots: SlotClaim[] = [];
+  const [messages, setMessages] = createSignal<readonly { id: string; type: "assistant"; time: { completed?: number }; text: string }[]>([
+    { id: "msg-1", type: "assistant", time: { completed: undefined }, text: "a" },
+  ]);
+  let calls = 0;
+  const host = {
+    storage: storageFixture(), options: {},
+    theme: { text: { base: "#eeeeee", muted: "#999999" }, background: { base: "#15151a" } },
+    client: { rpc: () => ({ report: async ({ sessionID }: { sessionID: string }) => {
+      calls += 1;
+      return { sessionID, limit: 200000, snapshot: null };
+    } }) },
+    data: { session: {
+      message: { list: () => messages() },
+      get: () => ({ location: { directory: "/workspace" } }),
+    } },
+    ui: { slot: (slot: SlotClaim) => { slots.push(slot); return () => {}; } },
+  } as unknown as Context;
+  const cleanup = await tui.setup(host);
+  const screen = await testRender(() => <box flexDirection="column">
+    {slots.filter((slot) => slot.prepend === "sidebar.content").map((slot) => slot.render({ sessionID: "demo" } as never))}
+  </box>, { width: 40, height: 10 });
+  try {
+    await screen.renderOnce();
+    await screen.renderOnce();
+    assert.equal(calls, 1);
+    for (const text of ["ab", "abc", "abcd"]) {
+      setMessages([{ id: "msg-1", type: "assistant", time: { completed: undefined }, text }]);
+      await screen.renderOnce();
+    }
+    assert.equal(calls, 1, "message object churn during streaming must not abort and refetch");
+    setMessages([{ id: "msg-1", type: "assistant", time: { completed: 1000 }, text: "abcd" }]);
+    await screen.renderOnce();
+    await screen.renderOnce();
+    assert.equal(calls, 2, "a completed message is a new request boundary");
+  } finally { screen.renderer.destroy(); await cleanup?.(); }
+});
+
+test("the compiled sidebar reacts without the JSX transform", async () => {
+  // OpenCode loads node_modules TUI sources without Solid's compiler. dist/ is
+  // precompiled so accessors still exist; this guards the shipped artifact.
+  const slots: SlotClaim[] = [];
+  let resolve!: (value: unknown) => void;
+  const pending = new Promise((done) => { resolve = done; });
+  const host = {
+    storage: storageFixture(), options: {},
+    theme: { text: { base: "#eeeeee", muted: "#999999" }, background: { base: "#15151a" } },
+    client: { rpc: () => ({ report: () => pending }) },
+    data: { session: { message: { list: () => [] }, get: () => ({ location: { directory: "/workspace" } }) } },
+    ui: { slot: (slot: SlotClaim) => { slots.push(slot); return () => {}; } },
+  } as unknown as Context;
+  const cleanup = await compiledTui.setup(host);
+  const screen = await testRender(() => <box flexDirection="column">
+    {slots.filter((slot) => slot.prepend === "sidebar.content").map((slot) => slot.render({ sessionID: "demo" } as never))}
+  </box>, { width: 40, height: 10 });
+  try {
+    await screen.renderOnce();
+    assert.ok(screen.captureCharFrame().includes("Loading context…"));
+    resolve({ sessionID: "demo", limit: 100000, snapshot: { model: "m", capturedAt: 0, total: 12345, notes: [], entries: [] } });
+    await Promise.resolve();
+    await screen.renderOnce();
+    assert.ok(screen.captureCharFrame().includes("~12.3k tokens"), "the compiled label must update after the report resolves");
+  } finally { screen.renderer.destroy(); await cleanup?.(); }
+});
+
+test("the compiled overlay reacts to a resolved report", async () => {
+  const slots: SlotClaim[] = [];
+  let commands: readonly KeymapCommand[] = [];
+  let resolve!: (value: unknown) => void;
+  const pending = new Promise((done) => { resolve = done; });
+  const [dialog, setDialog] = createSignal<(() => JSX.Element) | null>(null);
+  const host = {
+    storage: storageFixture(), options: {},
+    theme: { text: { base: "#eeeeee", muted: "#999999" }, background: { base: "#15151a" } },
+    client: { rpc: () => ({ report: () => pending }) },
+    data: { session: { message: { list: () => [] }, get: () => ({ location: { directory: "/workspace" } }) } },
+    keymap: { layer: (read: () => { commands: KeymapCommand[] }) => { commands = read().commands; } },
+    ui: {
+      slot: (slot: SlotClaim) => { slots.push(slot); return () => {}; },
+      router: { current: () => ({ type: "session", sessionID: "current-session" }) },
+      dialog: { set: () => {}, show: (render: () => JSX.Element) => setDialog(() => render), clear: () => setDialog(null) },
+      toast: { show: () => {} },
+    },
+  } as unknown as Context;
+  const cleanup = await compiledTui.setup(host);
+  const screen = await testRender(() => <box flexDirection="column">
+    {slots.filter((slot) => slot.append === "app").map((slot) => slot.render({ sessionID: "current-session" } as never))}
+    {dialog()?.()}
+  </box>, { width: 100, height: 35 });
+  try {
+    await screen.renderOnce();
+    await commands.find((command) => command.slash?.name === "context")!.run();
+    await screen.renderOnce();
+    assert.ok(screen.captureCharFrame().includes("Context Atlas"));
+    resolve({ sessionID: "current-session", limit: 100000, snapshot: {
+      model: "test/model", capturedAt: 0, total: 12345, notes: [],
+      entries: [{ id: "rules", category: "rules", name: "AGENTS.md", tokens: 12345, bytes: 10, preview: "Rules", truncated: false }],
+    } });
+    await Promise.resolve();
+    await screen.renderOnce();
+    const frame = screen.captureCharFrame();
+    assert.ok(frame.includes("~12.3k / 100.0k tokens"), "the compiled overlay must show the resolved snapshot");
+    assert.ok(frame.includes("Last captured request"));
+  } finally { screen.renderer.destroy(); await cleanup?.(); }
 });

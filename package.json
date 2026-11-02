@@ -7,16 +7,19 @@
   "repository": "github:LerikP/opencode-context-atlas",
   "exports": {
     ".": "./src/index.ts",
-    "./tui": "./src/tui.tsx"
+    "./tui": "./dist/tui.js"
   },
   "files": [
     "src",
+    "dist",
     "index.ts",
     "tui.tsx",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
+    "build": "node scripts/build-tui.mjs",
+    "prepack": "npm run build",
     "test": "npm run test:core && npm run test:tui",
     "test:core": "tsx --test test/*.test.ts",
     "test:tui": "bun test --preload @opentui/solid/preload test/*.test.tsx",
@@ -30,9 +33,12 @@
     "zod": "4.1.8"
   },
   "devDependencies": {
+    "@babel/core": "^7.28.0",
+    "@babel/preset-typescript": "^7.27.1",
     "@opentui/core": "0.5.14",
     "@opentui/solid": "0.5.14",
     "@types/node": "^24.10.1",
+    "babel-preset-solid": "^1.9.12",
     "solid-js": "1.9.12",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"

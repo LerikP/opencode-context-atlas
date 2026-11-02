@@ -64,16 +64,21 @@ function useReport(context: Context, sessionID: () => string) {
   const rpc = context.client.rpc(atlasRpc);
   let pending: AbortController | undefined;
   onCleanup(() => pending?.abort());
+  // Streaming updates replace the message object on every delta. Refetch only when
+  // the request boundary moves, otherwise every delta aborts and restarts the RPC.
   const trigger = createMemo(() => {
     const messages = context.data.session.message.list(sessionID());
     const last = messages.at(-1);
     return { sessionID: sessionID(), last: last?.id, completed: last?.type === "assistant" ? last.time.completed : undefined };
-  });
+  }, undefined, { equals: (a, b) => a.sessionID === b.sessionID && a.last === b.last && a.completed === b.completed });
   const [report, { refetch }] = createResource(trigger, async ({ sessionID }) => {
     pending?.abort();
     pending = new AbortController();
     const signal = AbortSignal.any([pending.signal, AbortSignal.timeout(5000)]);
-    const result = reportSchema.parse(await rpc.report({ sessionID }, { signal }));
+    // Plugin RPC calls default to the server's own location, which has a separate
+    // snapshot cache. Scope the call to the session's location to read its captures.
+    const location = context.data.session.get?.(sessionID)?.location;
+    const result = reportSchema.parse(await rpc.report({ sessionID }, { signal, location }));
     if (result.sessionID !== sessionID) throw new Error("Unexpected session");
     return result;
   });
