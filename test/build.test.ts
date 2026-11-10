@@ -8,6 +8,6 @@ import { buildTui } from "../scripts/build-tui.mjs";
 test("committed TUI build matches the source", async () => {
   const expected = await buildTui({ write: false });
   for (const [target, output] of expected) {
-    assert.equal(await readFile(target, "utf8"), output, `${target} is stale; run npm run build`);
+    assert.equal(await readFile(target, "utf8"), output, `${target} is stale; run npm run bundle`);
   }
 });

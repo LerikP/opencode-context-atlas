@@ -1,6 +1,6 @@
 {
   "name": "opencode-context-atlas",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "A Claude Code-inspired context map for OpenCode v2",
   "type": "module",
   "license": "MIT",
@@ -21,8 +21,8 @@
   "scripts": {
     "build:tui": "node scripts/build-tui.mjs",
     "build:gui": "vite build",
-    "build": "npm run build:tui && npm run build:gui",
-    "prepublishOnly": "npm run build",
+    "bundle": "npm run build:tui && npm run build:gui",
+    "prepublishOnly": "npm run bundle",
     "test": "npm run test:core && npm run test:tui && npm run test:gui",
     "test:gui": "vitest run",
     "test:core": "tsx --test test/*.test.ts",
@@ -40,6 +40,8 @@
     "zod": "4.1.8"
   },
   "devDependencies": {
+    "@npmcli/arborist": "9.4.0",
+    "pacote": "21.5.1",
     "effect": "4.0.1",
     "@babel/core": "^7.28.0",
     "@babel/preset-typescript": "^7.27.1",

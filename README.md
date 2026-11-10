@@ -175,7 +175,7 @@ This option needs Node.js/npm for dependency installation:
 git clone https://github.com/LerikP/opencode-context-atlas.git
 cd opencode-context-atlas
 npm ci
-npm run build
+npm run bundle
 ```
 
 For a checkout installation, add the **absolute checkout path** to `plugins` in your OpenCode v2
@@ -371,7 +371,13 @@ tags only, verifies the version against `package.json` and both root versions in
 Only after these pass does it create a GitHub Release with generated notes and
 a version-pinned installation command. No npm publication or separate build is
 needed for installation: the tagged Git package ships the server TypeScript
-entry and prebuilt TUI/GUI bundles. Run `npm run build` before committing a release.
+entry and prebuilt TUI/GUI bundles. Run `npm run bundle` before committing a release.
+
+The combined build script is named `bundle` deliberately. A script named `build`
+triggers npm's Git dependency preparation even when bundles are already committed.
+OpenCode's embedded installer cannot run that nested npm command, causing
+`git dep preparation failed` and `Unrecognized flag` errors. Git installation
+is tested with the real npm Git fetcher and no external npm CLI.
 
 To prepare a release, update the package version and lockfile, commit and push
 that change, then create and push its matching tag:
