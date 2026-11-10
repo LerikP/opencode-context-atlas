@@ -21,12 +21,19 @@ An installed skill or connected MCP server alone is not evidence of context use.
 - Only the latest primary request snapshot per session is represented.
 - Estimate text tokens with `o200k_base`. Explicitly label every category and
   the map as estimates, including for OpenAI (provider framing is not captured).
-- Show provider usage separately from this estimate. Never rescale category
-  numbers to pretend their sum is the provider's measured count.
+- The main total and occupancy percentage match OpenCode: select its last
+  assistant with usage after completed compaction and before undo, sum input,
+  output, reasoning and both cache counters, and use that message's model limit.
+  If usage is absent, explicitly label the fallback estimate. If its model limit
+  is absent, show unknown rather than borrowing the snapshot model's limit.
+- Show captured-input estimates and signed differences separately. Differences
+  are not necessarily overhead; different models are not compared. Never rescale
+  category numbers to pretend their sum is the provider's measured count.
 - Unknown segments remain visible. Images and opaque provider state cannot be
   counted as ordinary text and produce a visible incomplete-coverage note.
 - Skills advertised in the catalogue and loaded skill bodies are separate.
-- No request snapshot means unavailable, not zero. Errors, stale snapshots,
+- No request snapshot means the source breakdown is unavailable, not zero.
+  Reported usage can still be shown independently. Errors, stale snapshots,
   model switches and missing server plugins have explicit states.
 
 ## Modules and test seams
@@ -48,6 +55,9 @@ adapter (`src/gui.tsx`) registers a side panel and local commands through the
 experimental GUI API. It shares the report schema, map allocation and server RPC,
 scopes requests to the selected server/location, and renders previews as plain text.
 Its Solid DOM bundle is built with the SDK's Vite plugin; host modules stay external.
+`src/usage.ts` shares SDK usage selection, location-scoped catalog loading and
+headline/fallback rules between the Desktop and TUI adapters. The map retains
+the captured input's original estimates and model limit.
 RPC is the
 actual cross-process boundary; one shared, validated schema describes its report.
 There is no filesystem cache and no provider proxy in production.

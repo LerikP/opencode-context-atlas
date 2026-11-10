@@ -19,7 +19,7 @@ const sources: [Category, string, number, string][] = [
 
 export const screenshotSnapshot: Snapshot = {
   capturedAt: Date.UTC(2026, 10, 10, 9, 0),
-  model: "atlas/atlas-demo · illustrative demo",
+  model: "atlas/atlas-demo",
   total: sources.reduce((sum, [, , tokens]) => sum + tokens, 0),
   notes: ["Illustrative demo data · token counts and source previews are curated for screenshots."],
   entries: sources.map(([category, name, tokens, preview], index) => ({

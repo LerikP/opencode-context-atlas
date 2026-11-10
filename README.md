@@ -53,14 +53,14 @@ or make a model call.
 
 ### In the main window
 
-The sidebar shows a compact context map and estimated usage. Click **Atlas ↗**
+The sidebar shows an estimated category map and OpenCode's usage total. Click **Atlas ↗**
 to open the full inspector shown above.
 
 ![Atlas sidebar with default Nerd Font icons and Context7 connected](docs/screenshot-sidebar-nerd-font.png)
 
 ## Install
 
-Atlas **0.2.0** requires **OpenCode v2, version 2.2.0 or newer**, for both the
+Atlas **0.2.1** requires **OpenCode v2, version 2.2.0 or newer**, for both the
 terminal and Desktop. Atlas 0.1.x targets the older terminal API.
 OpenCode 1 is not supported.
 
@@ -75,19 +75,22 @@ session's side panel.
 Atlas opens as a side-panel tab with a colored context map, category totals,
 source lists and text previews. Click a category or cell, then a source.
 **Back** or **Escape** returns one level; **Refresh** fetches the latest snapshot.
-The panel follows the selected session and its server. Provider usage is shown
-separately from estimates. **Symbols** in the panel header, or **s** while the
+The panel follows the selected session and its server. Its headline matches
+OpenCode usage; the captured-input estimate and difference are shown separately.
+**Symbols** in the panel header, or **s** while the
 panel has focus, cycles **Blocks → Unicode → Nerd Font**, updating both the map
 and category icons. Nerd Font is the default, as in the TUI. The choice is saved
 in Desktop plugin storage, independently of the terminal preference. For Nerd
 Font mode, choose an installed Nerd Font Mono as Desktop's monospace font;
 Unicode and Blocks work without it.
 
-**Header indicator: On/Off** in the Atlas panel optionally adds **Atlas · 51%**
+**Header indicator: On/Off** in the Atlas panel optionally adds **Atlas · 54%**
 with a small usage ring beside Desktop's built-in context indicator. The percentage
-is Atlas's estimated token count divided by the context limit. It is **off
+uses the same usage total and model limit as OpenCode. Without reported usage,
+it falls back to a clearly marked estimate, such as **Atlas · ~51%**. It is **off
 by default**, and the choice is saved across restarts. Click it to open Atlas for
-that session. Unknown usage or limits show **Atlas · —**, not zero.
+that session. If neither usage nor an estimate is available, or its model limit
+is unknown, the indicator shows **Atlas · —**, not zero.
 Disabled indicators and inactive session headers make no Atlas RPC
 requests. Desktop's built-in indicator remains available.
 
@@ -99,12 +102,14 @@ Back and Refresh have also been exercised with the isolated local provider.
 
 Captured in OpenCode Desktop 2.2.6 with illustrative demo data. The source
 previews, token estimates and provider usage are curated screenshot fixtures.
+The headline and header ring show OpenCode's **108,424 tokens / 54%**. The captured
+input is estimated separately at **101,000 tokens**, with a **+7,424** difference.
 
 <img src="docs/screenshot-desktop-overview-nerd-font.png" alt="Desktop context map with Nerd Font icons, category estimates and the Symbols switch" width="640">
 
-The optional header indicator opens Atlas and shows estimated context occupancy:
+The optional header indicator opens Atlas and shows OpenCode's context occupancy:
 
-![Atlas header indicator with a usage ring and 51% context occupancy](docs/screenshot-desktop-header.png)
+![Atlas header indicator with a usage ring and 54% context occupancy](docs/screenshot-desktop-header.png)
 
 <details>
 <summary>Desktop symbol modes and source inspection</summary>
@@ -306,10 +311,21 @@ This works without intercepting provider traffic, including WebSocket-backed
 sessions. It is not the provider's tokenizer/framing contract, and attribution
 of instruction blocks relies on OpenCode's prompt markers.
 
-The provider's last completed input usage, including cache, is shown separately.
-It can differ from the captured request estimate, especially during a running
-turn. Atlas does not rescale category counts to make them look exact. The map
-describes the **last captured request**, not a prediction of the next one.
+**The main total and percentage match OpenCode**, in both Desktop and TUI:
+`input + output + reasoning + cache.read + cache.write`. Atlas uses the SDK's
+`lastAssistantWithUsage`, selecting a message after the last completed compaction
+and before the undo boundary, and looks up that message's model in the session's
+location catalog. A missing model limit stays unknown; the captured request's
+model limit is not substituted for it. Reported usage remains available even
+when Atlas has no captured request.
+
+Without eligible reported usage, the headline falls back to the captured-input
+estimate, explicitly marked as estimated. The signed difference compares OpenCode
+usage with the latest captured-input estimate; it is **not a measurement of
+overhead**. It can include the response, tokenizer/framing differences and changes
+between request snapshots. If the two model IDs differ, Atlas shows a warning
+instead of subtracting incomparable values. Category counts are never rescaled.
+The map describes the **last captured request**, not a prediction of the next one.
 
 Media, files embedded in tool results, and opaque provider state cannot be
 measured as ordinary text. Unsupported content parts produce coverage notes.
@@ -361,10 +377,10 @@ To prepare a release, update the package version and lockfile, commit and push
 that change, then create and push its matching tag:
 
 ```sh
-npm version 0.2.0 --no-git-tag-version
+npm version 0.2.1 --no-git-tag-version
 # Review, commit and push the version change before tagging.
-git tag -a v0.2.0 -m 'Context Atlas v0.2.0'
-git push origin v0.2.0
+git tag -a v0.2.1 -m 'Context Atlas v0.2.1'
+git push origin v0.2.1
 ```
 
 The workflow's manual **Run workflow** action validates the supplied tag against

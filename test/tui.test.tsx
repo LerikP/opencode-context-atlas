@@ -74,7 +74,7 @@ test("switching sessions never displays the previous session's snapshot while RP
       if (sessionID === "second") return new Promise(() => {});
       return { sessionID, limit: 100000, snapshot: { model: "test/model", capturedAt: 0, total: 12345, notes: [], entries: [] } };
     } }) },
-    data: { session: { message: { list: () => [] } } },
+    data: { session: { get: () => undefined, message: { list: () => [] } } },
     ui: { slot: (slot: SlotClaim) => { slots.push(slot); return () => {}; } },
   } as unknown as Context;
   const cleanup = await tui.setup(host);
@@ -100,7 +100,7 @@ test("Atlas opens on left-button release and remains open after a complete click
     storage: storageFixture(),
     options: {}, theme: { text: { base: "#eeeeee", muted: "#999999" }, background: { base: "#15151a" } },
     client: { rpc: () => ({ report: async ({ sessionID }: { sessionID: string }) => ({ sessionID, limit: 200000, snapshot: null }) }) },
-    data: { session: { message: { list: () => [] } } },
+    data: { session: { get: () => undefined, message: { list: () => [] } } },
     keymap: { layer: () => {} },
     ui: {
       slot: (slot: SlotClaim) => { slots.push(slot); return () => {}; },
@@ -159,7 +159,7 @@ for (const [mode, ruleSymbol, toolSymbol] of [
           { id: "tools", category: "tools", name: "read", tokens: 20000, bytes: 10, preview: "Tool text", truncated: false },
         ] },
       }) }) },
-      data: { session: { message: { list: () => [] } } },
+      data: { session: { get: () => undefined, message: { list: () => [] } } },
       keymap: { layer: (read: () => { commands: KeymapCommand[] }) => { commands = read().commands; } },
       ui: {
         slot: (slot: SlotClaim) => { slots.push(slot); return () => {}; },
@@ -213,7 +213,7 @@ test("Symbols button and s cycle the shared mode and restore the choice in a new
           { id: "rules", category: "rules", name: "AGENTS.md", tokens: 20000, bytes: 10, preview: "Rules", truncated: false },
         ] },
       }) }) },
-      data: { session: { message: { list: () => [] } } },
+      data: { session: { get: () => undefined, message: { list: () => [] } } },
       keymap: { layer: (read: () => { commands: KeymapCommand[] }) => { commands = read().commands; } },
       ui: {
         slot: (slot: SlotClaim) => { slots.push(slot); return () => {}; },
@@ -402,3 +402,58 @@ test("the compiled overlay reacts to a resolved report", async () => {
     assert.ok(frame.includes("Last captured request"));
   } finally { screen.renderer.destroy(); await cleanup?.(); }
 });
+
+for (const [name, plugin] of [["source", tui], ["bundle", compiledTui]] as const) {
+  test(`TUI ${name} uses OpenCode totals and the usage model limit without scaling categories`, async () => {
+    const slots: SlotClaim[] = [];
+    let commands: readonly KeymapCommand[] = [];
+    let captured = true;
+    const [dialog, setDialog] = createSignal<(() => JSX.Element) | null>(null);
+    const location = { directory: '/usage-project' };
+    const host = {
+      storage: storageFixture(), options: {},
+      theme: { text: { base: '#eeeeee', muted: '#999999' }, background: { base: '#15151a' } },
+      client: { rpc: () => ({ report: async ({ sessionID }: { sessionID: string }) => ({
+        sessionID, limit: 100000, snapshot: captured ? { model: 'test/model', capturedAt: 0, total: 10000, notes: [], entries: [
+          { id: 'rules', category: 'rules', name: 'AGENTS.md', tokens: 10000, bytes: 10, preview: 'Rules', truncated: false },
+        ] } : null,
+      }) }) },
+      data: {
+        session: { get: () => ({ location }), message: { list: () => [{
+          id: 'usage', type: 'assistant', model: { providerID: 'test', id: 'model' }, time: { completed: 1 },
+          tokens: { input: 20000, output: 3000, reasoning: 2000, cache: { read: 4000, write: 1000 } },
+        }] } },
+        location: {
+          provider: { list: () => [{ id: 'test' }], sync: async () => {} },
+          model: { list: () => [{ providerID: 'test', id: 'model', limit: { context: 50000 } }], sync: async () => {} },
+        },
+      },
+      keymap: { layer: (read: () => { commands: KeymapCommand[] }) => { commands = read().commands; } },
+      ui: {
+        slot: (slot: SlotClaim) => { slots.push(slot); return () => {}; },
+        router: { current: () => ({ type: 'session', sessionID: 'demo' }) },
+        dialog: { set: () => {}, show: (render: () => JSX.Element) => setDialog(() => render), clear: () => setDialog(null) },
+      },
+    } as unknown as Context;
+    const cleanup = await plugin.setup(host);
+    const screen = await testRender(() => <box flexDirection="column">
+      {slots.map(slot => slot.render({ sessionID: 'demo' } as never))}{dialog()?.()}
+    </box>, { width: 110, height: 45 });
+    try {
+      await screen.renderOnce(); await screen.renderOnce();
+      assert.ok(screen.captureCharFrame().includes('30.0k tokens · 60%'), screen.captureCharFrame());
+      await commands.find(command => command.slash?.name === 'context')!.run();
+      await screen.renderOnce(); await screen.renderOnce();
+      const frame = screen.captureCharFrame();
+      assert.ok(frame.includes('30.0k / 50.0k tokens'), frame);
+      assert.ok(frame.includes('OpenCode usage'), frame);
+      assert.ok(frame.includes('Captured input: ~10.0k tokens'), frame);
+      assert.ok(frame.includes('Difference to captured-input estimate: +20.0k tokens'), frame);
+      captured = false;
+      screen.mockInput.pressKey('r');
+      await screen.renderOnce(); await screen.renderOnce();
+      assert.ok(screen.captureCharFrame().includes('30.0k / 50.0k tokens'), screen.captureCharFrame());
+      assert.ok(screen.captureCharFrame().includes('No request captured'), screen.captureCharFrame());
+    } finally { screen.renderer.destroy(); await cleanup?.(); }
+  });
+}

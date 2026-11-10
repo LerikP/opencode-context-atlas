@@ -7,6 +7,7 @@ import * as web from "solid-js/web";
 import * as host from "@opencode/plugin/gui";
 import * as rpc from "@opencode/plugin/rpc";
 import * as effect from "effect";
+import * as clientSolid from "@opencode/client/solid";
 import { render } from "solid-js/web";
 import { createSignal } from "solid-js";
 import type { Context, MountedSession, Panel as PanelType } from "@opencode/plugin/gui";
@@ -26,9 +27,10 @@ const snapshot = {
 let dispose: (() => void) | undefined;
 afterEach(() => { dispose?.(); document.body.replaceChildren(); });
 
-test.each(["source", "bundle"])("Desktop (%s) opens Atlas locally and inspects captured sources as text", async (entry) => {
+function definitionFor(entry: string) {
   const modules: Record<string, unknown> = {
-    "solid-js": solid, "solid-js/web": web, "@opencode/plugin/gui": host, "@opencode/plugin/rpc": rpc, effect,
+    "solid-js": solid, "solid-js/web": web, "@opencode/plugin/gui": host, "@opencode/plugin/rpc": rpc,
+    "@opencode/client/solid": clientSolid, effect,
   };
   const exports: { default?: typeof plugin } = {};
   if (entry === "bundle") runInNewContext(readFileSync("dist/gui-experimental.cjs", "utf8"), {
@@ -38,13 +40,17 @@ test.each(["source", "bundle"])("Desktop (%s) opens Atlas locally and inspects c
       return modules[name];
     },
   });
-  const definition = entry === "bundle" ? exports.default! : plugin;
+  return entry === "bundle" ? exports.default! : plugin;
+}
+
+test.each(["source", "bundle"])("Desktop (%s) opens Atlas locally and inspects captured sources as text", async (entry) => {
+  const definition = definitionFor(entry);
   const contributions = new Map<string, any[]>();
   const report = vi.fn().mockResolvedValue({ sessionID: "a", snapshot, limit: 100 });
   const client = { rpc: () => ({ report }) };
   const location = { directory: "/project" };
   const session = { key: "server\na", id: "a", location, server: {
-    client, connected: true, data: { session: { message: { list: () => [] } } },
+    client, connected: true, data: { session: { get: () => undefined, message: { list: () => [] } } },
   } } as unknown as MountedSession;
   const open = vi.fn();
   const [appearance, setAppearance] = createSignal({ symbols: 'nerd-font', headerIndicator: false });
@@ -144,14 +150,14 @@ test.each(["source", "bundle"])("Desktop (%s) opens Atlas locally and inspects c
   expect(headerRoot.textContent).toBe('');
   expect(report).toHaveBeenCalledTimes(requests);
   click('Header indicator: Off');
-  await vi.waitFor(() => expect(headerRoot.textContent).toBe('Atlas · 10%'));
+  await vi.waitFor(() => expect(headerRoot.textContent).toBe('Atlas · ~10%'));
   expect(appearance().headerIndicator).toBe(true);
   expect(headerRoot.querySelector('.atlas-header-map')).toBeNull();
   expect(headerRoot.querySelector('.atlas-header-progress')?.getAttribute('stroke-dasharray')).toBe('10 100');
   headerRoot.querySelector('button')!.click();
   expect(open).toHaveBeenLastCalledWith('context-atlas.server:atlas', session);
   click('Symbols: Unicode');
-  expect(headerRoot.textContent).toBe('Atlas · 10%');
+  expect(headerRoot.textContent).toBe('Atlas · ~10%');
   setActive(false);
   expect(headerRoot.textContent).toBe('');
   expect(report.mock.calls.at(-1)![1].signal.aborted).toBe(true);
@@ -168,9 +174,85 @@ test.each(["source", "bundle"])("Desktop (%s) opens Atlas locally and inspects c
   setActive(false);
   report.mockResolvedValue({ sessionID: 'b', snapshot, limit: 5 });
   setActive(true);
-  await vi.waitFor(() => expect(headerRoot.textContent).toBe('Atlas · 200%'));
+  await vi.waitFor(() => expect(headerRoot.textContent).toBe('Atlas · ~200%'));
   expect(headerRoot.querySelector('.atlas-header-progress')?.getAttribute('stroke-dasharray')).toBe('100 100');
   click('Header indicator: On');
   expect(headerRoot.textContent).toBe('');
   expect(appearance().headerIndicator).toBe(false);
+});
+
+test.each(["source", "bundle"])("Desktop (%s) matches OpenCode usage, model, undo and compaction while keeping source estimates", async (entry) => {
+  const contributions = new Map<string, any[]>();
+  const message = (id: string, model = 'model', input = 20) => ({
+    id, type: 'assistant', model: { providerID: 'test', id: model }, time: { completed: 1 },
+    tokens: { input, output: 3, reasoning: 2, cache: { read: 4, write: 1 } },
+  });
+  const [messages, setMessages] = createSignal<any[]>([message('old')]);
+  const [boundary, setBoundary] = createSignal<string>();
+  const [models, setModels] = createSignal<any[]>([
+    { providerID: 'test', id: 'model', limit: { context: 100 } },
+    { providerID: 'test', id: 'other', limit: { context: 200 } },
+    { providerID: 'test', id: 'other', status: 'deprecated', limit: { context: 1 } },
+  ]);
+  const report = vi.fn().mockResolvedValue({ sessionID: 'a', snapshot, limit: 100 });
+  const data = {
+    session: { get: () => ({ revert: boundary() ? { messageID: boundary() } : undefined }), message: { list: () => messages() } },
+    location: { model: { list: () => models(), sync: async () => {} },
+      provider: { list: () => [{ id: 'test' }], sync: async () => {} } },
+  };
+  const session = { key: 'server\na', id: 'a', location: { directory: '/project' },
+    server: { data, client: { rpc: () => ({ report }) }, connected: true } };
+  const context = {
+    id: 'context-atlas.server', signal: new AbortController().signal,
+    add: (key: string, value: unknown) => contributions.set(key, [...contributions.get(key) ?? [], value]),
+    sessions: { current: () => session }, layout: { open: vi.fn() }, appearance: { font: () => 'monospace' },
+    stores: { appearance: { value: { symbols: 'unicode', headerIndicator: true } } },
+  };
+  definitionFor(entry).setup!(context as any);
+  const panel = contributions.get('panel')![0];
+  const header = contributions.get('slot')!.find(slot => slot.at === 'session.header');
+  const root = document.createElement('div'); document.body.append(root);
+  dispose = render(() => <>{header.render({ session, active: true })}{panel.render({ session })}</>, root);
+  const indicator = () => root.querySelector('.atlas-header-indicator')!.textContent;
+  await vi.waitFor(() => expect(indicator()).toBe('Atlas · 30%'));
+  expect(root.textContent).toContain('30 tokens · OpenCode usage');
+  await vi.waitFor(() => expect(root.textContent).toContain('10 estimated tokens'));
+  expect(root.textContent).toContain('Difference to captured-input estimate: +20 tokens');
+  expect(root.querySelector('.atlas-categories')!.textContent).toContain('~10');
+
+  setMessages([message('old'), message('new', 'other', 50)]);
+  await vi.waitFor(() => expect(indicator()).toBe('Atlas · 30%')); // 60 / 200, not snapshot's 100 limit
+  expect(root.textContent).toContain('60 tokens · OpenCode usage');
+  expect(root.textContent).toContain('test/other');
+  expect(root.textContent).toContain('Different models');
+  expect(root.textContent).not.toContain('Difference to captured-input estimate:');
+  setBoundary('new');
+  expect(indicator()).toBe('Atlas · 30%');
+  expect(root.textContent).toContain('30 tokens · OpenCode usage');
+  setBoundary(undefined);
+  setMessages([message('old'), { id: 'compact', type: 'compaction', status: 'completed' }]);
+  await vi.waitFor(() => expect(indicator()).toBe('Atlas · ~10%'));
+  expect(root.textContent).not.toContain('tokens · OpenCode usage');
+  setMessages([message('old'), { id: 'compact', type: 'compaction', status: 'completed' }, message('after')]);
+  await vi.waitFor(() => expect(indicator()).toBe('Atlas · 30%'));
+  setModels([]);
+  expect(indicator()).toBe('Atlas · —'); // do not use the snapshot model's limit for reported usage
+  expect(root.textContent).toContain('30 tokens · OpenCode usage');
+  setBoundary('not-loaded');
+  expect(indicator()).toBe('Atlas · ~10%');
+  setModels([{ providerID: 'test', id: 'model', limit: { context: 100 } }]);
+  setBoundary(undefined);
+  setMessages([{ ...message('zero'), tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } } }]);
+  await vi.waitFor(() => expect(indicator()).toBe('Atlas · 0%'));
+  expect(root.textContent).toContain('0 tokens · OpenCode usage');
+  expect(root.textContent).toContain('Difference to captured-input estimate: -10 tokens');
+  const requests = report.mock.calls.length;
+  setMessages([message('zero', 'model', 20)]);
+  expect(indicator()).toBe('Atlas · 30%');
+  expect(report).toHaveBeenCalledTimes(requests); // usage changes alone do not restart capture RPC
+  report.mockResolvedValue({ sessionID: 'a', snapshot: null, limit: null });
+  root.querySelector<HTMLButtonElement>('.atlas-actions button:last-child')!.click();
+  await vi.waitFor(() => expect(root.textContent).toContain('No captured request'));
+  expect(indicator()).toBe('Atlas · 30%');
+  expect(root.textContent).toContain('30 tokens · OpenCode usage');
 });

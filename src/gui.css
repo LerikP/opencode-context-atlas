@@ -1,4 +1,4 @@
-.context-atlas { padding: 20px; height: 100%; overflow: auto; font-size: 14px; line-height: 1.5; }
+.context-atlas { padding: 20px; height: 100%; overflow: auto; scrollbar-gutter: stable; font-size: 14px; line-height: 1.5; }
 .context-atlas header, .context-atlas nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .context-atlas h2 { font-size: 18px; font-weight: 600; }
 .context-atlas header { flex-wrap: wrap; }

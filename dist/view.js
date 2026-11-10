@@ -13,6 +13,7 @@ import { useTerminalDimensions } from "@opentui/solid";
 import { MouseButton } from "@opentui/core";
 import { categories, categoryKeys } from "../src/report.ts";
 import { cellSymbol, windowMap } from "../src/map.ts";
+import { usageSummary } from "../src/usage.ts";
 export function AtlasView(props) {
   const terminal = useTerminalDimensions();
   const [measuredWidth, setMeasuredWidth] = createSignal(0);
@@ -22,6 +23,7 @@ export function AtlasView(props) {
   let root;
   let scroll;
   const snapshot = () => props.report?.snapshot ?? null;
+  const summary = () => usageSummary(props.report, props.usage);
   const entry = () => snapshot()?.entries.find(item => item.id === entryID()) ?? null;
   const limit = () => props.report?.limit;
   const width = () => measuredWidth() || terminal().width - 8;
@@ -72,14 +74,14 @@ export function AtlasView(props) {
       _el$6 = _$createElement("text"),
       _el$7 = _$createElement("text"),
       _el$11 = _$createElement("scrollbox"),
-      _el$12 = _$createElement("box"),
-      _el$13 = _$createElement("text"),
-      _el$14 = _$createElement("box"),
-      _el$16 = _$createElement("text");
+      _el$16 = _$createElement("box"),
+      _el$17 = _$createElement("text"),
+      _el$18 = _$createElement("box"),
+      _el$20 = _$createElement("text");
     _$insertNode(_el$, _el$2);
     _$insertNode(_el$, _el$7);
     _$insertNode(_el$, _el$11);
-    _$insertNode(_el$, _el$12);
+    _$insertNode(_el$, _el$16);
     _$use(value => {
       root = value;
       value.onSizeChange = () => setMeasuredWidth(value.width);
@@ -112,37 +114,36 @@ export function AtlasView(props) {
     _$insert(_el$6, () => category() ? "esc back" : "esc close");
     _$setProp(_el$7, "flexShrink", 0);
     _$setProp(_el$7, "marginTop", 1);
-    _$insert(_el$7, () => snapshot()?.model ?? "Context window");
+    _$insert(_el$7, () => summary()?.model ?? "Context window");
     _$insert(_el$, _$createComponent(Show, {
       get when() {
-        return snapshot();
+        return summary();
       },
-      keyed: true,
-      children: snap => (() => {
-        var _el$17 = _$createElement("text"),
-          _el$18 = _$createElement("b"),
-          _el$19 = _$createElement("span");
-        _$insertNode(_el$17, _el$18);
-        _$insertNode(_el$17, _el$19);
-        _$setProp(_el$17, "flexShrink", 0);
-        _$insert(_el$18, () => `~${formatTokens(snap.total)} / ${limit() ? formatTokens(limit()) : "?"} tokens`);
-        _$insert(_el$19, (() => {
-          var _c$ = _$memo(() => !!limit());
-          return () => _c$() ? `  ·  ${(snap.total / limit() * 100).toFixed(1)}% estimated` : "  ·  limit unknown";
+      children: value => (() => {
+        var _el$21 = _$createElement("text"),
+          _el$22 = _$createElement("b"),
+          _el$23 = _$createElement("span");
+        _$insertNode(_el$21, _el$22);
+        _$insertNode(_el$21, _el$23);
+        _$setProp(_el$21, "flexShrink", 0);
+        _$insert(_el$22, () => `${value().reported ? '' : '~'}${formatTokens(value().total)} / ${value().limit ? formatTokens(value().limit) : "?"} tokens`);
+        _$insert(_el$23, (() => {
+          var _c$ = _$memo(() => !!value().limit);
+          return () => _c$() ? `  ·  ${value().reported ? value().percentage : (value().total / value().limit * 100).toFixed(1)}% ${value().reported ? 'OpenCode usage' : 'estimated'}` : `  ·  limit unknown · ${value().reported ? 'OpenCode usage' : 'estimated'}`;
         })());
         _$effect(_p$ => {
           var _v$9 = props.foreground,
             _v$0 = {
               fg: props.muted
             };
-          _v$9 !== _p$.e && (_p$.e = _$setProp(_el$17, "fg", _v$9, _p$.e));
-          _v$0 !== _p$.t && (_p$.t = _$setProp(_el$19, "style", _v$0, _p$.t));
+          _v$9 !== _p$.e && (_p$.e = _$setProp(_el$21, "fg", _v$9, _p$.e));
+          _v$0 !== _p$.t && (_p$.t = _$setProp(_el$23, "style", _v$0, _p$.t));
           return _p$;
         }, {
           e: undefined,
           t: undefined
         });
-        return _el$17;
+        return _el$21;
       })()
     }), _el$11);
     _$insert(_el$, _$createComponent(Show, {
@@ -191,6 +192,39 @@ export function AtlasView(props) {
     });
     _$insert(_el$11, _$createComponent(Show, {
       get when() {
+        return _$memo(() => !!!category())() && snapshot();
+      },
+      get children() {
+        var _el$12 = _$createElement("text");
+        _$insert(_el$12, () => `Captured input: ~${formatTokens(snapshot().total)} tokens · ${snapshot().model}`);
+        _$effect(_$p => _$setProp(_el$12, "fg", props.muted, _$p));
+        return _el$12;
+      }
+    }), null);
+    _$insert(_el$11, _$createComponent(Show, {
+      get when() {
+        return _$memo(() => !!(!category() && summary()?.difference !== null))() && summary()?.difference !== undefined;
+      },
+      get children() {
+        var _el$13 = _$createElement("text");
+        _$insert(_el$13, () => `Difference to captured-input estimate: ${summary().difference >= 0 ? '+' : '-'}${formatTokens(Math.abs(summary().difference))} tokens`);
+        _$effect(_$p => _$setProp(_el$13, "fg", props.muted, _$p));
+        return _el$13;
+      }
+    }), null);
+    _$insert(_el$11, _$createComponent(Show, {
+      get when() {
+        return _$memo(() => !!!category())() && summary()?.modelMismatch;
+      },
+      get children() {
+        var _el$14 = _$createElement("text");
+        _$insertNode(_el$14, _$createTextNode(`Different models for usage and captured input; not directly comparable.`));
+        _$effect(_$p => _$setProp(_el$14, "fg", props.muted, _$p));
+        return _el$14;
+      }
+    }), null);
+    _$insert(_el$11, _$createComponent(Show, {
+      get when() {
         return snapshot();
       },
       keyed: true,
@@ -200,95 +234,95 @@ export function AtlasView(props) {
         },
         get fallback() {
           return (() => {
-            var _el$34 = _$createElement("box"),
-              _el$35 = _$createElement("box"),
-              _el$36 = _$createElement("text"),
-              _el$38 = _$createElement("text"),
-              _el$39 = _$createElement("text");
-            _$insertNode(_el$34, _el$35);
-            _$setProp(_el$34, "flexDirection", "column");
-            _$setProp(_el$34, "gap", 1);
-            _$insertNode(_el$35, _el$36);
-            _$insertNode(_el$35, _el$38);
-            _$insertNode(_el$35, _el$39);
-            _$setProp(_el$35, "flexDirection", "row");
-            _$setProp(_el$35, "flexShrink", 0);
-            _$insertNode(_el$36, _$createTextNode(`‹ `));
-            _$setProp(_el$36, "onMouseUp", event => {
+            var _el$39 = _$createElement("box"),
+              _el$40 = _$createElement("box"),
+              _el$41 = _$createElement("text"),
+              _el$43 = _$createElement("text"),
+              _el$44 = _$createElement("text");
+            _$insertNode(_el$39, _el$40);
+            _$setProp(_el$39, "flexDirection", "column");
+            _$setProp(_el$39, "gap", 1);
+            _$insertNode(_el$40, _el$41);
+            _$insertNode(_el$40, _el$43);
+            _$insertNode(_el$40, _el$44);
+            _$setProp(_el$40, "flexDirection", "row");
+            _$setProp(_el$40, "flexShrink", 0);
+            _$insertNode(_el$41, _$createTextNode(`‹ `));
+            _$setProp(_el$41, "onMouseUp", event => {
               if (event.button !== MouseButton.LEFT) return;
               event.stopPropagation();
               back();
             });
-            _$setProp(_el$38, "flexShrink", 0);
-            _$setProp(_el$38, "onMouseUp", event => {
+            _$setProp(_el$43, "flexShrink", 0);
+            _$setProp(_el$43, "onMouseUp", event => {
               if (event.button !== MouseButton.LEFT) return;
               event.stopPropagation();
               setEntryID(null);
               resetSelection();
             });
-            _$insert(_el$38, () => categories[category()]?.label);
-            _$setProp(_el$39, "flexShrink", 1);
-            _$insert(_el$39, (() => {
+            _$insert(_el$43, () => categories[category()]?.label);
+            _$setProp(_el$44, "flexShrink", 1);
+            _$insert(_el$44, (() => {
               var _c$3 = _$memo(() => !!entry());
               return () => _c$3() ? ` / ${safeText(entry().name)}` : `  ·  ${entries().length} sources`;
             })());
-            _$insert(_el$34, _$createComponent(Show, {
+            _$insert(_el$39, _$createComponent(Show, {
               get when() {
                 return entry();
               },
               get fallback() {
                 return (() => {
-                  var _el$42 = _$createElement("box");
-                  _$setProp(_el$42, "flexDirection", "column");
-                  _$insert(_el$42, _$createComponent(For, {
+                  var _el$47 = _$createElement("box");
+                  _$setProp(_el$47, "flexDirection", "column");
+                  _$insert(_el$47, _$createComponent(For, {
                     get each() {
                       return entries();
                     },
                     children: (item, index) => (() => {
-                      var _el$43 = _$createElement("box"),
-                        _el$44 = _$createElement("text"),
-                        _el$45 = _$createElement("text");
-                      _$insertNode(_el$43, _el$44);
-                      _$insertNode(_el$43, _el$45);
-                      _$setProp(_el$43, "flexDirection", "row");
-                      _$setProp(_el$43, "justifyContent", "space-between");
-                      _$setProp(_el$43, "gap", 1);
-                      _$setProp(_el$43, "onMouseDown", () => {
+                      var _el$48 = _$createElement("box"),
+                        _el$49 = _$createElement("text"),
+                        _el$50 = _$createElement("text");
+                      _$insertNode(_el$48, _el$49);
+                      _$insertNode(_el$48, _el$50);
+                      _$setProp(_el$48, "flexDirection", "row");
+                      _$setProp(_el$48, "justifyContent", "space-between");
+                      _$setProp(_el$48, "gap", 1);
+                      _$setProp(_el$48, "onMouseDown", () => {
                         setSelected(index());
                         setEntryID(item.id);
                         scroll?.scrollTo(0);
                       });
-                      _$setProp(_el$44, "flexGrow", 1);
-                      _$insert(_el$44, () => `${selected() === index() ? "›" : " "} ${shortName(safeText(item.name), Math.max(16, width() - 20))}`);
-                      _$insert(_el$45, () => `~${formatTokens(item.tokens)}`);
+                      _$setProp(_el$49, "flexGrow", 1);
+                      _$insert(_el$49, () => `${selected() === index() ? "›" : " "} ${shortName(safeText(item.name), Math.max(16, width() - 20))}`);
+                      _$insert(_el$50, () => `~${formatTokens(item.tokens)}`);
                       _$effect(_p$ => {
                         var _v$17 = selected() === index() ? props.foreground : props.muted,
                           _v$18 = categories[item.category].color;
-                        _v$17 !== _p$.e && (_p$.e = _$setProp(_el$44, "fg", _v$17, _p$.e));
-                        _v$18 !== _p$.t && (_p$.t = _$setProp(_el$45, "fg", _v$18, _p$.t));
+                        _v$17 !== _p$.e && (_p$.e = _$setProp(_el$49, "fg", _v$17, _p$.e));
+                        _v$18 !== _p$.t && (_p$.t = _$setProp(_el$50, "fg", _v$18, _p$.t));
                         return _p$;
                       }, {
                         e: undefined,
                         t: undefined
                       });
-                      return _el$43;
+                      return _el$48;
                     })()
                   }));
-                  return _el$42;
+                  return _el$47;
                 })();
               },
               get children() {
                 return [(() => {
-                  var _el$40 = _$createElement("text");
-                  _$insert(_el$40, () => `~${formatTokens(entry().tokens)} tokens · ${formatTokens(entry().bytes)} bytes${entry().truncated ? " · preview truncated" : ""}`);
-                  _$effect(_$p => _$setProp(_el$40, "fg", props.muted, _$p));
-                  return _el$40;
+                  var _el$45 = _$createElement("text");
+                  _$insert(_el$45, () => `~${formatTokens(entry().tokens)} tokens · ${formatTokens(entry().bytes)} bytes${entry().truncated ? " · preview truncated" : ""}`);
+                  _$effect(_$p => _$setProp(_el$45, "fg", props.muted, _$p));
+                  return _el$45;
                 })(), (() => {
-                  var _el$41 = _$createElement("text");
-                  _$setProp(_el$41, "wrapMode", "word");
-                  _$insert(_el$41, () => sourcePreview(entry()) || "Preview budget exhausted; full source was counted.");
-                  _$effect(_$p => _$setProp(_el$41, "fg", props.foreground, _$p));
-                  return _el$41;
+                  var _el$46 = _$createElement("text");
+                  _$setProp(_el$46, "wrapMode", "word");
+                  _$insert(_el$46, () => sourcePreview(entry()) || "Preview budget exhausted; full source was counted.");
+                  _$effect(_$p => _$setProp(_el$46, "fg", props.foreground, _$p));
+                  return _el$46;
                 })()];
               }
             }), null);
@@ -296,103 +330,103 @@ export function AtlasView(props) {
               var _v$14 = categories[category()]?.color,
                 _v$15 = categories[category()]?.color,
                 _v$16 = categories[category()]?.color;
-              _v$14 !== _p$.e && (_p$.e = _$setProp(_el$36, "fg", _v$14, _p$.e));
-              _v$15 !== _p$.t && (_p$.t = _$setProp(_el$38, "fg", _v$15, _p$.t));
-              _v$16 !== _p$.a && (_p$.a = _$setProp(_el$39, "fg", _v$16, _p$.a));
+              _v$14 !== _p$.e && (_p$.e = _$setProp(_el$41, "fg", _v$14, _p$.e));
+              _v$15 !== _p$.t && (_p$.t = _$setProp(_el$43, "fg", _v$15, _p$.t));
+              _v$16 !== _p$.a && (_p$.a = _$setProp(_el$44, "fg", _v$16, _p$.a));
               return _p$;
             }, {
               e: undefined,
               t: undefined,
               a: undefined
             });
-            return _el$34;
+            return _el$39;
           })();
         },
         get children() {
           return [(() => {
-            var _el$20 = _$createElement("box"),
-              _el$21 = _$createElement("box"),
-              _el$22 = _$createElement("text"),
-              _el$23 = _$createElement("box"),
-              _el$24 = _$createElement("box"),
-              _el$25 = _$createElement("text"),
-              _el$27 = _$createElement("text");
-            _$insertNode(_el$20, _el$21);
-            _$insertNode(_el$20, _el$23);
-            _$insertNode(_el$21, _el$22);
-            _$setProp(_el$21, "flexDirection", "column");
-            _$setProp(_el$21, "flexShrink", 0);
-            _$insert(_el$21, _$createComponent(For, {
+            var _el$24 = _$createElement("box"),
+              _el$25 = _$createElement("box"),
+              _el$26 = _$createElement("text"),
+              _el$27 = _$createElement("box"),
+              _el$28 = _$createElement("box"),
+              _el$29 = _$createElement("text"),
+              _el$31 = _$createElement("text");
+            _$insertNode(_el$24, _el$25);
+            _$insertNode(_el$24, _el$27);
+            _$insertNode(_el$25, _el$26);
+            _$setProp(_el$25, "flexDirection", "column");
+            _$setProp(_el$25, "flexShrink", 0);
+            _$insert(_el$25, _$createComponent(For, {
               get each() {
                 return Array.from({
                   length: gridRows()
                 }, (_, index) => index);
               },
               children: row => (() => {
-                var _el$46 = _$createElement("box");
-                _$setProp(_el$46, "flexDirection", "row");
-                _$setProp(_el$46, "height", 1);
-                _$insert(_el$46, _$createComponent(For, {
+                var _el$51 = _$createElement("box");
+                _$setProp(_el$51, "flexDirection", "row");
+                _$setProp(_el$51, "height", 1);
+                _$insert(_el$51, _$createComponent(For, {
                   get each() {
                     return cells().slice(row * columns(), (row + 1) * columns());
                   },
                   children: cell => (() => {
-                    var _el$47 = _$createElement("text");
-                    _$setProp(_el$47, "opacity", cell === "free" ? 0.35 : 1);
-                    _$setProp(_el$47, "onMouseDown", () => {
+                    var _el$52 = _$createElement("text");
+                    _$setProp(_el$52, "opacity", cell === "free" ? 0.35 : 1);
+                    _$setProp(_el$52, "onMouseDown", () => {
                       if (cell !== "free" && cell !== "unknown") chooseCategory(cell);
                     });
-                    _$insert(_el$47, () => `${cellSymbol(cell, props.symbols)} `);
-                    _$effect(_$p => _$setProp(_el$47, "fg", cell === "free" || cell === "unknown" ? props.muted : categories[cell].color, _$p));
-                    return _el$47;
+                    _$insert(_el$52, () => `${cellSymbol(cell, props.symbols)} `);
+                    _$effect(_$p => _$setProp(_el$52, "fg", cell === "free" || cell === "unknown" ? props.muted : categories[cell].color, _$p));
+                    return _el$52;
                   })()
                 }));
-                return _el$46;
+                return _el$51;
               })()
-            }), _el$22);
-            _$setProp(_el$22, "marginTop", 1);
-            _$insert(_el$22, () => `1 cell ≈ ${limit() ? formatTokens(limit() / cells().length) : "?"} tokens`);
-            _$insertNode(_el$23, _el$24);
-            _$setProp(_el$23, "flexDirection", "column");
-            _$setProp(_el$23, "flexGrow", 1);
-            _$setProp(_el$23, "minWidth", 28);
-            _$insert(_el$23, _$createComponent(For, {
+            }), _el$26);
+            _$setProp(_el$26, "marginTop", 1);
+            _$insert(_el$26, () => `1 cell ≈ ${limit() ? formatTokens(limit() / cells().length) : "?"} tokens`);
+            _$insertNode(_el$27, _el$28);
+            _$setProp(_el$27, "flexDirection", "column");
+            _$setProp(_el$27, "flexGrow", 1);
+            _$setProp(_el$27, "minWidth", 28);
+            _$insert(_el$27, _$createComponent(For, {
               get each() {
                 return totals();
               },
               children: (row, index) => (() => {
-                var _el$48 = _$createElement("box"),
-                  _el$49 = _$createElement("text"),
-                  _el$50 = _$createElement("text");
-                _$insertNode(_el$48, _el$49);
-                _$insertNode(_el$48, _el$50);
-                _$setProp(_el$48, "flexDirection", "row");
-                _$setProp(_el$48, "justifyContent", "space-between");
-                _$setProp(_el$48, "gap", 1);
-                _$setProp(_el$48, "onMouseDown", () => chooseCategory(row.key));
-                _$insert(_el$49, () => `${legendMarker(row.key, index())} ${categories[row.key].label}`);
-                _$insert(_el$50, () => `~${formatTokens(row.tokens)}${limit() ? `  ${(row.tokens / limit() * 100).toFixed(1)}%`.padStart(8) : ""}`);
+                var _el$53 = _$createElement("box"),
+                  _el$54 = _$createElement("text"),
+                  _el$55 = _$createElement("text");
+                _$insertNode(_el$53, _el$54);
+                _$insertNode(_el$53, _el$55);
+                _$setProp(_el$53, "flexDirection", "row");
+                _$setProp(_el$53, "justifyContent", "space-between");
+                _$setProp(_el$53, "gap", 1);
+                _$setProp(_el$53, "onMouseDown", () => chooseCategory(row.key));
+                _$insert(_el$54, () => `${legendMarker(row.key, index())} ${categories[row.key].label}`);
+                _$insert(_el$55, () => `~${formatTokens(row.tokens)}${limit() ? `  ${(row.tokens / limit() * 100).toFixed(1)}%`.padStart(8) : ""}`);
                 _$effect(_p$ => {
                   var _v$19 = categories[row.key].color,
                     _v$20 = props.foreground;
-                  _v$19 !== _p$.e && (_p$.e = _$setProp(_el$49, "fg", _v$19, _p$.e));
-                  _v$20 !== _p$.t && (_p$.t = _$setProp(_el$50, "fg", _v$20, _p$.t));
+                  _v$19 !== _p$.e && (_p$.e = _$setProp(_el$54, "fg", _v$19, _p$.e));
+                  _v$20 !== _p$.t && (_p$.t = _$setProp(_el$55, "fg", _v$20, _p$.t));
                   return _p$;
                 }, {
                   e: undefined,
                   t: undefined
                 });
-                return _el$48;
+                return _el$53;
               })()
-            }), _el$24);
-            _$insertNode(_el$24, _el$25);
-            _$insertNode(_el$24, _el$27);
-            _$setProp(_el$24, "flexDirection", "row");
-            _$setProp(_el$24, "justifyContent", "space-between");
-            _$setProp(_el$24, "gap", 1);
-            _$setProp(_el$24, "marginTop", 1);
-            _$insertNode(_el$25, _$createTextNode(`▫ Free space`));
-            _$insert(_el$27, (() => {
+            }), _el$28);
+            _$insertNode(_el$28, _el$29);
+            _$insertNode(_el$28, _el$31);
+            _$setProp(_el$28, "flexDirection", "row");
+            _$setProp(_el$28, "justifyContent", "space-between");
+            _$setProp(_el$28, "gap", 1);
+            _$setProp(_el$28, "marginTop", 1);
+            _$insertNode(_el$29, _$createTextNode(`▫ Free space (estimate)`));
+            _$insert(_el$31, (() => {
               var _c$2 = _$memo(() => !!limit());
               return () => _c$2() ? `~${formatTokens(Math.max(0, limit() - snap.total))}` : "unknown";
             })());
@@ -402,11 +436,11 @@ export function AtlasView(props) {
                 _v$11 = props.muted,
                 _v$12 = props.muted,
                 _v$13 = props.muted;
-              _v$1 !== _p$.e && (_p$.e = _$setProp(_el$20, "flexDirection", _v$1, _p$.e));
-              _v$10 !== _p$.t && (_p$.t = _$setProp(_el$20, "gap", _v$10, _p$.t));
-              _v$11 !== _p$.a && (_p$.a = _$setProp(_el$22, "fg", _v$11, _p$.a));
-              _v$12 !== _p$.o && (_p$.o = _$setProp(_el$25, "fg", _v$12, _p$.o));
-              _v$13 !== _p$.i && (_p$.i = _$setProp(_el$27, "fg", _v$13, _p$.i));
+              _v$1 !== _p$.e && (_p$.e = _$setProp(_el$24, "flexDirection", _v$1, _p$.e));
+              _v$10 !== _p$.t && (_p$.t = _$setProp(_el$24, "gap", _v$10, _p$.t));
+              _v$11 !== _p$.a && (_p$.a = _$setProp(_el$26, "fg", _v$11, _p$.a));
+              _v$12 !== _p$.o && (_p$.o = _$setProp(_el$29, "fg", _v$12, _p$.o));
+              _v$13 !== _p$.i && (_p$.i = _$setProp(_el$31, "fg", _v$13, _p$.i));
               return _p$;
             }, {
               e: undefined,
@@ -415,81 +449,81 @@ export function AtlasView(props) {
               o: undefined,
               i: undefined
             });
-            return _el$20;
+            return _el$24;
           })(), _$createComponent(Show, {
             get when() {
               return _$memo(() => !!limit())() && snap.total > limit();
             },
             get children() {
-              var _el$28 = _$createElement("text");
-              _$insertNode(_el$28, _$createTextNode(`Estimate exceeds the model window; map is saturated.`));
-              _$setProp(_el$28, "fg", "#ef9273");
-              _$setProp(_el$28, "marginTop", 1);
-              return _el$28;
+              var _el$32 = _$createElement("text");
+              _$insertNode(_el$32, _$createTextNode(`Estimate exceeds the model window; map is saturated.`));
+              _$setProp(_el$32, "fg", "#ef9273");
+              _$setProp(_el$32, "marginTop", 1);
+              return _el$32;
             }
           }), (() => {
-            var _el$30 = _$createElement("box"),
-              _el$31 = _$createElement("text");
-            _$insertNode(_el$30, _el$31);
-            _$setProp(_el$30, "flexDirection", "column");
-            _$setProp(_el$30, "marginTop", 1);
-            _$insertNode(_el$31, _$createTextNode(`Last captured request · o200k_base estimate, before provider framing.`));
-            _$insert(_el$30, _$createComponent(Show, {
+            var _el$34 = _$createElement("box"),
+              _el$35 = _$createElement("text");
+            _$insertNode(_el$34, _el$35);
+            _$setProp(_el$34, "flexDirection", "column");
+            _$setProp(_el$34, "marginTop", 1);
+            _$insertNode(_el$35, _$createTextNode(`Last captured request · o200k_base estimate; categories are not rescaled.`));
+            _$insert(_el$34, _$createComponent(Show, {
               get when() {
-                return props.providerTotal !== undefined;
+                return summary()?.reported;
               },
               get children() {
-                var _el$33 = _$createElement("text");
-                _$insert(_el$33, () => `Provider's last completed input: ${formatTokens(props.providerTotal)} tokens (including cache).`);
-                _$effect(_$p => _$setProp(_el$33, "fg", props.muted, _$p));
-                return _el$33;
+                var _el$37 = _$createElement("text");
+                _$insertNode(_el$37, _$createTextNode(`OpenCode usage includes output and reasoning. Differences are not necessarily overhead.`));
+                _$effect(_$p => _$setProp(_el$37, "fg", props.muted, _$p));
+                return _el$37;
               }
             }), null);
-            _$insert(_el$30, _$createComponent(For, {
+            _$insert(_el$34, _$createComponent(For, {
               get each() {
                 return snap.notes;
               },
               children: note => (() => {
-                var _el$51 = _$createElement("text");
-                _$setProp(_el$51, "fg", "#ef9273");
-                _$insert(_el$51, note);
-                return _el$51;
+                var _el$56 = _$createElement("text");
+                _$setProp(_el$56, "fg", "#ef9273");
+                _$insert(_el$56, note);
+                return _el$56;
               })()
             }), null);
-            _$effect(_$p => _$setProp(_el$31, "fg", props.muted, _$p));
-            return _el$30;
+            _$effect(_$p => _$setProp(_el$35, "fg", props.muted, _$p));
+            return _el$34;
           })()];
         }
       })
-    }));
-    _$insertNode(_el$12, _el$13);
-    _$insertNode(_el$12, _el$14);
-    _$setProp(_el$12, "justifyContent", "space-between");
-    _$setProp(_el$12, "marginTop", 1);
-    _$setProp(_el$12, "flexShrink", 0);
-    _$insert(_el$13, () => entry() ? "↑↓ scroll · esc back" : "↑↓ select · enter inspect");
-    _$insertNode(_el$14, _el$16);
-    _$setProp(_el$14, "flexDirection", "row");
-    _$setProp(_el$14, "gap", 2);
-    _$setProp(_el$14, "justifyContent", "space-between");
-    _$insert(_el$14, _$createComponent(Show, {
+    }), null);
+    _$insertNode(_el$16, _el$17);
+    _$insertNode(_el$16, _el$18);
+    _$setProp(_el$16, "justifyContent", "space-between");
+    _$setProp(_el$16, "marginTop", 1);
+    _$setProp(_el$16, "flexShrink", 0);
+    _$insert(_el$17, () => entry() ? "↑↓ scroll · esc back" : "↑↓ select · enter inspect");
+    _$insertNode(_el$18, _el$20);
+    _$setProp(_el$18, "flexDirection", "row");
+    _$setProp(_el$18, "gap", 2);
+    _$setProp(_el$18, "justifyContent", "space-between");
+    _$insert(_el$18, _$createComponent(Show, {
       get when() {
         return props.onCycleSymbols;
       },
       get children() {
-        var _el$15 = _$createElement("text");
-        _$setProp(_el$15, "fg", "#e5b567");
-        _$setProp(_el$15, "onMouseUp", event => {
+        var _el$19 = _$createElement("text");
+        _$setProp(_el$19, "fg", "#e5b567");
+        _$setProp(_el$19, "onMouseUp", event => {
           if (event.button !== MouseButton.LEFT) return;
           event.stopPropagation();
           props.onCycleSymbols?.();
         });
-        _$insert(_el$15, () => `[s Symbols: ${symbolLabel()}]`);
-        return _el$15;
+        _$insert(_el$19, () => `[s Symbols: ${symbolLabel()}]`);
+        return _el$19;
       }
-    }), _el$16);
-    _$setProp(_el$16, "fg", "#e5b567");
-    _$insert(_el$16, () => props.loading ? "loading…" : "r refresh");
+    }), _el$20);
+    _$setProp(_el$20, "fg", "#e5b567");
+    _$insert(_el$20, () => props.loading ? "loading…" : "r refresh");
     _$effect(_p$ => {
       var _v$ = Math.max(8, Math.min(terminal().height - 6, entry() ? 30 : category() ? 26 : wide() ? 24 : 30)),
         _v$2 = props.background,
@@ -503,10 +537,10 @@ export function AtlasView(props) {
       _v$2 !== _p$.t && (_p$.t = _$setProp(_el$, "backgroundColor", _v$2, _p$.t));
       _v$3 !== _p$.a && (_p$.a = _$setProp(_el$6, "fg", _v$3, _p$.a));
       _v$4 !== _p$.o && (_p$.o = _$setProp(_el$7, "fg", _v$4, _p$.o));
-      _v$5 !== _p$.i && (_p$.i = _$setProp(_el$12, "flexDirection", _v$5, _p$.i));
-      _v$6 !== _p$.n && (_p$.n = _$setProp(_el$12, "gap", _v$6, _p$.n));
-      _v$7 !== _p$.s && (_p$.s = _$setProp(_el$13, "fg", _v$7, _p$.s));
-      _v$8 !== _p$.h && (_p$.h = _$setProp(_el$16, "onMouseDown", _v$8, _p$.h));
+      _v$5 !== _p$.i && (_p$.i = _$setProp(_el$16, "flexDirection", _v$5, _p$.i));
+      _v$6 !== _p$.n && (_p$.n = _$setProp(_el$16, "gap", _v$6, _p$.n));
+      _v$7 !== _p$.s && (_p$.s = _$setProp(_el$17, "fg", _v$7, _p$.s));
+      _v$8 !== _p$.h && (_p$.h = _$setProp(_el$20, "onMouseDown", _v$8, _p$.h));
       return _p$;
     }, {
       e: undefined,

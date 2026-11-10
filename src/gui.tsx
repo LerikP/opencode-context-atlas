@@ -5,6 +5,7 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, onCl
 import { atlasRpc } from "./rpc.ts";
 import { categories, categoryKeys, reportSchema, type Category } from "./report.ts";
 import { cellSymbol, windowMap, type SymbolMode } from "./map.ts";
+import { usageSummary, useUsage } from "./usage.ts";
 import css from "./gui.css?inline";
 
 export default Plugin.define({
@@ -56,17 +57,12 @@ function Atlas(props: { context: Context; session: MountedSession; symbols: Symb
   const [category, setCategory] = createSignal<Category | null>(null);
   const [entryID, setEntryID] = createSignal<string | null>(null);
   const { result, refetch, report } = useReport(props.context, () => props.session);
+  const observed = useUsage(() => props.session.server.data, () => props.session.id, () => props.session.location);
+  const summary = () => usageSummary(report(), observed.usage());
   const snapshot = () => report()?.snapshot;
   const entries = () => snapshot()?.entries.filter((entry) => entry.category === category()) ?? [];
   const selected = () => entries().find((entry) => entry.id === entryID());
   const cells = () => windowMap(snapshot() ?? null, report()?.limit ?? null, 100);
-  const providerTotal = () => {
-    const messages = props.session.server.data.session.message.list(props.session.id);
-    for (const message of [...messages].reverse()) {
-      if (message.type === "assistant" && message.tokens)
-        return message.tokens.input + message.tokens.cache.read + message.tokens.cache.write;
-    }
-  };
   createEffect(() => { props.session.key; props.session.location; setCategory(null); setEntryID(null); });
   // Navigation removes the clicked button. Keep keyboard events inside the panel
   // instead of letting focus fall back to the host's composer or document body.
@@ -86,20 +82,29 @@ function Atlas(props: { context: Context; session: MountedSession; symbols: Symb
       </button>
       <button onClick={props.onCycleSymbols} title="Cycle symbols (s). Nerd Font requires an installed Nerd Font Mono.">
         Symbols: {props.symbols === 'nerd-font' ? 'Nerd Font' : props.symbols === 'unicode' ? 'Unicode' : 'Blocks'}
-      </button><button onClick={() => { void refetch(); }}>Refresh</button>
+      </button><button onClick={() => { void refetch(); observed.refresh(); }}>Refresh</button>
     </div></header>
+    <Show when={summary()}>{(value) => <>
+      <p><strong>{value().total.toLocaleString()} tokens · {value().reported ? 'OpenCode usage' : 'estimated'}</strong>
+        {value().limit ? ` / ${value().limit!.toLocaleString()} context window · ${value().percentage}%` : ' · Context limit unknown'}</p>
+      <p class="atlas-muted">{value().model}</p>
+      <Show when={value().reported}><p class="atlas-muted">Includes input, output, reasoning and cache usage, as reported by OpenCode.</p></Show>
+    </>}</Show>
     <Show when={result.loading}><p role="status">Loading context…</p></Show>
     <Show when={result.error}><p role="alert">Context unavailable. Enable the Atlas server plugin and refresh to retry.</p></Show>
     <Show when={!props.session.location || !props.session.server.connected}><p>Waiting for the session connection…</p></Show>
     <Show when={snapshot()} fallback={<Show when={!result.loading && !result.error && props.session.location && props.session.server.connected}>
       <p>No captured request. Send a message in this session, then refresh. Snapshots are cleared on server restart or eviction.</p>
     </Show>}>{(snapshot) => <>
-      <p><strong>{snapshot().total.toLocaleString()} estimated tokens</strong>
+      <p><strong>Captured input: {snapshot().total.toLocaleString()} estimated tokens</strong>
         {report()?.limit ? ` / ${report()!.limit!.toLocaleString()} context window` : " · Context limit unknown"}</p>
       <p class="atlas-muted">{snapshot().model} · Captured {new Date(snapshot().capturedAt).toLocaleString()}</p>
-      <Show when={providerTotal() !== undefined}><p>Provider input: {providerTotal()?.toLocaleString()} tokens (reported separately)</p></Show>
+      <Show when={summary()?.difference !== null && summary()?.difference !== undefined}>
+        <p>Difference to captured-input estimate: {summary()!.difference! >= 0 ? '+' : ''}{summary()!.difference!.toLocaleString()} tokens</p>
+      </Show>
+      <Show when={summary()?.modelMismatch}><p>Different models for OpenCode usage and captured input; estimates are not directly comparable.</p></Show>
       <Show when={report()?.limit && snapshot().total > report()!.limit!}><p>Estimate exceeds the context window.</p></Show>
-      <p class="atlas-muted">Text estimate using o200k_base; provider framing and opaque state are not counted.</p>
+      <p class="atlas-muted">Map and categories estimate the last captured input using o200k_base. They are not rescaled to OpenCode usage; differences are not necessarily overhead.</p>
       <For each={snapshot().notes}>{(note) => <p class="atlas-muted">{note}</p>}</For>
       <div class="atlas-map" aria-label="Estimated context allocation">
         <For each={cells()}>{(cell) => <button disabled={cell === "free" || cell === "unknown"}
@@ -130,19 +135,16 @@ function Atlas(props: { context: Context; session: MountedSession; symbols: Symb
 
 function HeaderIndicator(props: { context: Context; session: MountedSession }) {
   const { result, report } = useReport(props.context, () => props.session);
-  const snapshot = () => report()?.snapshot;
-  const percentage = () => {
-    const value = snapshot();
-    const limit = report()?.limit;
-    return value && limit ? Math.round(value.total / limit * 100) : null;
-  };
+  const observed = useUsage(() => props.session.server.data, () => props.session.id, () => props.session.location);
+  const summary = () => usageSummary(report(), observed.usage());
+  const percentage = () => summary()?.percentage ?? null;
   const label = () => {
     const value = percentage();
-    return value !== null ? `Atlas · ${value}%` : result.loading ? 'Atlas …' : 'Atlas · —';
+    return value !== null ? `Atlas · ${summary()?.reported ? '' : '~'}${value}%` : result.loading && !summary() ? 'Atlas …' : 'Atlas · —';
   };
   return <button class="atlas-header-indicator"
     aria-label="Open Context Atlas"
-    title={snapshot() ? `${snapshot()!.total.toLocaleString()} estimated tokens${percentage() === null ? ' · Context limit unknown' : ` / ${report()!.limit!.toLocaleString()} context window`} · Open Context Atlas`
+    title={summary() ? `${summary()!.total.toLocaleString()} tokens · ${summary()!.reported ? 'OpenCode usage' : 'estimated'}${percentage() === null ? ' · Context limit unknown' : ` / ${summary()!.limit!.toLocaleString()} context window`} · Open Context Atlas`
       : 'Context unavailable · Open Context Atlas to refresh or inspect details'}
     onClick={() => props.context.layout.open(`${props.context.id}:atlas`, props.session)}>
     <Show when={percentage() !== null}>

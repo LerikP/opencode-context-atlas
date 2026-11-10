@@ -2,11 +2,12 @@
 import { Plugin } from "@opencode/plugin/tui";
 import type { Context } from "@opencode/plugin/tui/context";
 import { MouseButton } from "@opentui/core";
-import { For, createMemo, createResource, onCleanup } from "solid-js";
+import { For, Show, createMemo, createResource, onCleanup } from "solid-js";
 import { atlasRpc } from "./rpc.ts";
 import { categories, reportSchema, type Report } from "./report.ts";
 import { cellSymbol, windowMap, type SymbolMode } from "./map.ts";
 import { AtlasView, formatTokens } from "./view.tsx";
+import { useUsage, usageSummary, type ContextUsage } from "./usage.ts";
 
 export default Plugin.define({
   id: "context-atlas.tui",
@@ -89,20 +90,24 @@ function useReport(context: Context, sessionID: () => string) {
 
 function Dialog(props: { context: Context; sessionID: string; symbols: SymbolMode; onCycleSymbols: () => void }) {
   const state = useReport(props.context, () => props.sessionID);
+  const observed = useUsage(() => props.context.data, () => props.sessionID,
+    () => props.context.data.session.get(props.sessionID)?.location ?? props.context.location);
   return <AtlasView report={state.report()} loading={state.loading()} error={state.error()}
     symbols={props.symbols} onCycleSymbols={props.onCycleSymbols}
-    providerTotal={providerInput(props.context, props.sessionID)}
+    usage={observed.usage()}
     foreground={props.context.theme.text.base} muted={props.context.theme.text.muted}
     background={props.context.theme.background.base}
     registerBack={(back) => props.context.keymap.layer(() => ({
       mode: "modal", priority: 100,
       commands: [{ bind: "escape", title: "Back in Context Atlas", run: back }],
     }))}
-    onClose={() => props.context.ui.dialog.clear()} onRefresh={state.refresh} />;
+    onClose={() => props.context.ui.dialog.clear()} onRefresh={() => { state.refresh(); observed.refresh(); }} />;
 }
 
 function Indicator(props: { context: Context; sessionID: string; symbols: SymbolMode; onOpen: () => void }) {
   const state = useReport(props.context, () => props.sessionID);
+  const observed = useUsage(() => props.context.data, () => props.sessionID,
+    () => props.context.data.session.get(props.sessionID)?.location ?? props.context.location);
   const cells = () => windowMap(state.report()?.snapshot ?? null, state.report()?.limit ?? null, 20);
   return <box flexDirection="column" gap={0} marginBottom={1} onMouseUp={(event) => {
     if (event.button !== MouseButton.LEFT) return;
@@ -117,19 +122,13 @@ function Indicator(props: { context: Context; sessionID: string; symbols: Symbol
       <For each={cells()}>{(cell) => <span style={{ fg: cell === "free" || cell === "unknown"
         ? props.context.theme.text.muted : categories[cell].color }}>{cellSymbol(cell, props.symbols, "sidebar")}</span>}</For>
     </text>
-    <text fg={props.context.theme.text.muted}>{indicatorLabel(state.report(), state.loading())}</text>
+    <text fg={props.context.theme.text.muted}>{indicatorLabel(state.report(), state.loading(), observed.usage())}</text>
+    <Show when={observed.usage() && state.report()?.snapshot}><text fg={props.context.theme.text.muted}>Map: input estimate</text></Show>
   </box>;
 }
 
-function indicatorLabel(report: Report | null, loading: boolean): string {
-  if (!report?.snapshot) return loading ? "Loading context…" : "Click to inspect context";
-  return `~${formatTokens(report.snapshot.total)} tokens${report.limit ? ` · ${(report.snapshot.total / report.limit * 100).toFixed(0)}%` : ""}`;
-}
-
-function providerInput(context: Context, sessionID: string): number | undefined {
-  const messages = context.data.session.message.list(sessionID);
-  for (const message of [...messages].reverse()) {
-    if (message.type !== "assistant" || !message.tokens) continue;
-    return message.tokens.input + message.tokens.cache.read + message.tokens.cache.write;
-  }
+function indicatorLabel(report: Report | null, loading: boolean, reported: ContextUsage | null): string {
+  const summary = usageSummary(report, reported);
+  if (!summary) return loading ? "Loading context…" : "Click to inspect context";
+  return `${summary.reported ? '' : '~'}${formatTokens(summary.total)} tokens${summary.percentage !== null ? ` · ${summary.percentage}%` : ''}${summary.reported ? '' : ' estimated'}`;
 }

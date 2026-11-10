@@ -1,4 +1,5 @@
 import { effect as _$effect } from "@opentui/solid";
+import { memo as _$memo } from "@opentui/solid";
 import { insert as _$insert } from "@opentui/solid";
 import { createTextNode as _$createTextNode } from "@opentui/solid";
 import { insertNode as _$insertNode } from "@opentui/solid";
@@ -8,11 +9,12 @@ import { createComponent as _$createComponent } from "@opentui/solid";
 /** @jsxImportSource @opentui/solid */
 import { Plugin } from "@opencode/plugin/tui";
 import { MouseButton } from "@opentui/core";
-import { For, createMemo, createResource, onCleanup } from "solid-js";
+import { For, Show, createMemo, createResource, onCleanup } from "solid-js";
 import { atlasRpc } from "../src/rpc.ts";
 import { categories, reportSchema } from "../src/report.ts";
 import { cellSymbol, windowMap } from "../src/map.ts";
 import { AtlasView, formatTokens } from "./view.js";
+import { useUsage, usageSummary } from "../src/usage.ts";
 export default Plugin.define({
   id: "context-atlas.tui",
   setup(context) {
@@ -148,6 +150,7 @@ function useReport(context, sessionID) {
 }
 function Dialog(props) {
   const state = useReport(props.context, () => props.sessionID);
+  const observed = useUsage(() => props.context.data, () => props.sessionID, () => props.context.data.session.get(props.sessionID)?.location ?? props.context.location);
   return _$createComponent(AtlasView, {
     get report() {
       return state.report();
@@ -164,8 +167,8 @@ function Dialog(props) {
     get onCycleSymbols() {
       return props.onCycleSymbols;
     },
-    get providerTotal() {
-      return providerInput(props.context, props.sessionID);
+    get usage() {
+      return observed.usage();
     },
     get foreground() {
       return props.context.theme.text.base;
@@ -186,13 +189,15 @@ function Dialog(props) {
       }]
     })),
     onClose: () => props.context.ui.dialog.clear(),
-    get onRefresh() {
-      return state.refresh;
+    onRefresh: () => {
+      state.refresh();
+      observed.refresh();
     }
   });
 }
 function Indicator(props) {
   const state = useReport(props.context, () => props.sessionID);
+  const observed = useUsage(() => props.context.data, () => props.sessionID, () => props.context.data.session.get(props.sessionID)?.location ?? props.context.location);
   const cells = () => windowMap(state.report()?.snapshot ?? null, state.report()?.limit ?? null, 20);
   return (() => {
     var _el$ = _$createElement("box"),
@@ -226,15 +231,26 @@ function Indicator(props) {
         return cells();
       },
       children: cell => (() => {
-        var _el$0 = _$createElement("span");
-        _$insert(_el$0, () => cellSymbol(cell, props.symbols, "sidebar"));
-        _$effect(_$p => _$setProp(_el$0, "style", {
+        var _el$10 = _$createElement("span");
+        _$insert(_el$10, () => cellSymbol(cell, props.symbols, "sidebar"));
+        _$effect(_$p => _$setProp(_el$10, "style", {
           fg: cell === "free" || cell === "unknown" ? props.context.theme.text.muted : categories[cell].color
         }, _$p));
-        return _el$0;
+        return _el$10;
       })()
     }));
-    _$insert(_el$9, () => indicatorLabel(state.report(), state.loading()));
+    _$insert(_el$9, () => indicatorLabel(state.report(), state.loading(), observed.usage()));
+    _$insert(_el$, _$createComponent(Show, {
+      get when() {
+        return _$memo(() => !!observed.usage())() && state.report()?.snapshot;
+      },
+      get children() {
+        var _el$0 = _$createElement("text");
+        _$insertNode(_el$0, _$createTextNode(`Map: input estimate`));
+        _$effect(_$p => _$setProp(_el$0, "fg", props.context.theme.text.muted, _$p));
+        return _el$0;
+      }
+    }), null);
     _$effect(_p$ => {
       var _v$ = props.context.theme.text.base,
         _v$2 = props.context.theme.text.muted;
@@ -248,14 +264,8 @@ function Indicator(props) {
     return _el$;
   })();
 }
-function indicatorLabel(report, loading) {
-  if (!report?.snapshot) return loading ? "Loading context…" : "Click to inspect context";
-  return `~${formatTokens(report.snapshot.total)} tokens${report.limit ? ` · ${(report.snapshot.total / report.limit * 100).toFixed(0)}%` : ""}`;
-}
-function providerInput(context, sessionID) {
-  const messages = context.data.session.message.list(sessionID);
-  for (const message of [...messages].reverse()) {
-    if (message.type !== "assistant" || !message.tokens) continue;
-    return message.tokens.input + message.tokens.cache.read + message.tokens.cache.write;
-  }
+function indicatorLabel(report, loading, reported) {
+  const summary = usageSummary(report, reported);
+  if (!summary) return loading ? "Loading context…" : "Click to inspect context";
+  return `${summary.reported ? '' : '~'}${formatTokens(summary.total)} tokens${summary.percentage !== null ? ` · ${summary.percentage}%` : ''}${summary.reported ? '' : ' estimated'}`;
 }

@@ -4,12 +4,13 @@ import { useTerminalDimensions } from "@opentui/solid";
 import { MouseButton, type BoxRenderable, type ScrollBoxRenderable } from "@opentui/core";
 import { categories, categoryKeys, type Category, type Entry, type Report, type Snapshot } from "./report.ts";
 import { cellSymbol, windowMap, type SymbolMode } from "./map.ts";
+import { usageSummary, type ContextUsage } from "./usage.ts";
 
 export interface AtlasViewProps {
   report: Report | null;
   loading: boolean;
   error: string | null;
-  providerTotal?: number;
+  usage?: ContextUsage | null;
   symbols?: SymbolMode;
   foreground: string;
   muted: string;
@@ -29,6 +30,7 @@ export function AtlasView(props: AtlasViewProps) {
   let root: BoxRenderable | undefined;
   let scroll: ScrollBoxRenderable | undefined;
   const snapshot = (): Snapshot | null => props.report?.snapshot ?? null;
+  const summary = () => usageSummary(props.report, props.usage);
   const entry = () => snapshot()?.entries.find((item) => item.id === entryID()) ?? null;
   const limit = () => props.report?.limit;
   const width = () => measuredWidth() || terminal().width - 8;
@@ -92,12 +94,14 @@ export function AtlasView(props: AtlasViewProps) {
       <text fg={props.muted} onMouseDown={back}>{category() ? "esc back" : "esc close"}</text>
     </box>
     <text fg={props.muted} flexShrink={0} marginTop={1}>
-      {snapshot()?.model ?? "Context window"}
+      {summary()?.model ?? "Context window"}
     </text>
-    <Show when={snapshot()} keyed>
-      {(snap) => <text fg={props.foreground} flexShrink={0}>
-        <b>{`~${formatTokens(snap.total)} / ${limit() ? formatTokens(limit()!) : "?"} tokens`}</b>
-        <span style={{ fg: props.muted }}>{limit() ? `  ·  ${(snap.total / limit()! * 100).toFixed(1)}% estimated` : "  ·  limit unknown"}</span>
+    <Show when={summary()}>
+      {(value) => <text fg={props.foreground} flexShrink={0}>
+        <b>{`${value().reported ? '' : '~'}${formatTokens(value().total)} / ${value().limit ? formatTokens(value().limit!) : "?"} tokens`}</b>
+        <span style={{ fg: props.muted }}>{value().limit
+          ? `  ·  ${value().reported ? value().percentage : (value().total / value().limit! * 100).toFixed(1)}% ${value().reported ? 'OpenCode usage' : 'estimated'}`
+          : `  ·  limit unknown · ${value().reported ? 'OpenCode usage' : 'estimated'}`}</span>
       </text>}
     </Show>
     <Show when={props.loading}><text fg={props.muted}>Refreshing context…</text></Show>
@@ -107,6 +111,11 @@ export function AtlasView(props: AtlasViewProps) {
     </Show>
     <scrollbox ref={(value) => { scroll = value; }} scrollY flexGrow={1} flexShrink={1}
       marginTop={1} verticalScrollbarOptions={{ showArrows: false }}>
+      <Show when={!category() && snapshot()}><text fg={props.muted}>{`Captured input: ~${formatTokens(snapshot()!.total)} tokens · ${snapshot()!.model}`}</text></Show>
+      <Show when={!category() && summary()?.difference !== null && summary()?.difference !== undefined}>
+        <text fg={props.muted}>{`Difference to captured-input estimate: ${summary()!.difference! >= 0 ? '+' : '-'}${formatTokens(Math.abs(summary()!.difference!))} tokens`}</text>
+      </Show>
+      <Show when={!category() && summary()?.modelMismatch}><text fg={props.muted}>Different models for usage and captured input; not directly comparable.</text></Show>
       <Show when={snapshot()} keyed>
         {(snap) => <Show when={!category()} fallback={
           <box flexDirection="column" gap={1}>
@@ -168,7 +177,7 @@ export function AtlasView(props: AtlasViewProps) {
                 </box>
               }</For>
               <box flexDirection="row" justifyContent="space-between" gap={1} marginTop={1}>
-                <text fg={props.muted}>▫ Free space</text>
+                <text fg={props.muted}>▫ Free space (estimate)</text>
                 <text fg={props.muted}>{limit() ? `~${formatTokens(Math.max(0, limit()! - snap.total))}` : "unknown"}</text>
               </box>
             </box>
@@ -177,10 +186,8 @@ export function AtlasView(props: AtlasViewProps) {
             <text fg="#ef9273" marginTop={1}>Estimate exceeds the model window; map is saturated.</text>
           </Show>
           <box flexDirection="column" marginTop={1}>
-            <text fg={props.muted}>Last captured request · o200k_base estimate, before provider framing.</text>
-            <Show when={props.providerTotal !== undefined}>
-              <text fg={props.muted}>{`Provider's last completed input: ${formatTokens(props.providerTotal!)} tokens (including cache).`}</text>
-            </Show>
+            <text fg={props.muted}>Last captured request · o200k_base estimate; categories are not rescaled.</text>
+            <Show when={summary()?.reported}><text fg={props.muted}>OpenCode usage includes output and reasoning. Differences are not necessarily overhead.</text></Show>
             <For each={snap.notes}>{(note) => <text fg="#ef9273">{note}</text>}</For>
           </box>
         </Show>}
