@@ -1,16 +1,29 @@
 /** Isolated OpenCode + a loopback-only deterministic provider. No real credentials. */
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+const desktop = process.argv.includes("--desktop");
+const screenshots = process.argv.includes("--screenshots");
 const sandbox = resolve(root, ".dev/runtime");
 const home = resolve(sandbox, "home");
 const workspace = resolve(sandbox, "workspace");
 const config = resolve(sandbox, "config/opencode");
 await Promise.all([mkdir(home, { recursive: true }), mkdir(workspace, { recursive: true }), mkdir(config, { recursive: true })]);
+let plugin = root;
+if (screenshots) {
+  plugin = resolve(sandbox, "atlas-fixture");
+  await mkdir(plugin, { recursive: true });
+  await writeFile(resolve(plugin, "package.json"), JSON.stringify({
+    name: "atlas-screenshot-fixture", type: "module",
+    exports: { ".": "./server.ts", "./gui-experimental": "./gui-experimental.cjs" },
+  }));
+  await writeFile(resolve(plugin, "server.ts"), `export { default } from ${JSON.stringify(resolve(root, "dev/desktop-fixture.ts"))};\n`);
+  await copyFile(resolve(root, "dist/gui-experimental.cjs"), resolve(plugin, "gui-experimental.cjs"));
+}
 
 const provider = createServer(async (request, response) => {
   if (request.url === "/v1/models") {
@@ -24,8 +37,11 @@ const provider = createServer(async (request, response) => {
   const body = JSON.parse(Buffer.concat(chunks).toString());
   // Only fixture traffic reaches this server. Never install it in a user's config.
   await writeFile(resolve(sandbox, "fixture-request.json"), JSON.stringify(body, null, 2));
-  const text = "Atlas demo ready. Open /context or click Atlas in the sidebar to inspect this request.";
-  const usage = { prompt_tokens: 14000, completion_tokens: 24, total_tokens: 14024 };
+  const text = screenshots
+    ? "Context Atlas is ready. Open /atlas to explore the context map, browse loaded skills and inspect MCP sources. This session uses illustrative demo data."
+    : "Atlas demo ready. Open /context or click Atlas in the sidebar to inspect this request.";
+  const inputTokens = screenshots ? 108400 : 14000;
+  const usage = { prompt_tokens: inputTokens, completion_tokens: 24, total_tokens: inputTokens + 24 };
   if (!body.stream) {
     response.setHeader("Content-Type", "application/json");
     response.end(JSON.stringify({ id: "demo", object: "chat.completion", model: "atlas-demo",
@@ -45,10 +61,10 @@ if (!address || typeof address === "string") throw new Error("Missing fixture pr
 
 await writeFile(resolve(config, "opencode.json"), JSON.stringify({
   $schema: "https://opencode.ai/config.json",
-  plugins: ["-opencode.config.compatibility", root], update: "disable", model: "atlas/atlas-demo",
+  plugins: ["-opencode.config.compatibility", plugin], update: "disable", model: "atlas/atlas-demo",
   providers: { atlas: { name: "Atlas local fixture", env: ["ATLAS_TEST_KEY"],
     package: "@opencode/ai/providers/openai-compatible", settings: { baseURL: `http://127.0.0.1:${address.port}/v1` },
-    models: { "atlas-demo": { name: "Atlas Demo", limit: { context: 32000, output: 4096 }, capabilities: { tools: true } } },
+    models: { "atlas-demo": { name: "Atlas Demo", limit: { context: screenshots ? 200000 : 64000, output: 4096 }, capabilities: { tools: true } } },
   } },
 }, null, 2));
 await writeFile(resolve(config, "cli.json"), JSON.stringify({
@@ -60,16 +76,18 @@ const skill = resolve(workspace, ".opencode/skills/atlas-testing");
 await mkdir(skill, { recursive: true });
 await writeFile(resolve(skill, "SKILL.md"), "---\nname: atlas-testing\ndescription: Use for testing the Atlas demo.\n---\nCheck the context map.\n");
 
-const binary = process.env.OPENCODE_V2_BINARY ?? resolve(root,
-  "../opencode-v2-context-atlas/node_modules/@opencode/cli-darwin-arm64/bin/opencode");
+const binary = process.env.OPENCODE_V2_BINARY ?? (desktop
+  ? "/Applications/OpenCode.app/Contents/MacOS/OpenCode"
+  : resolve(root, "../opencode-v2-context-atlas/node_modules/@opencode/cli-darwin-arm64/bin/opencode"));
 const environment = {
     PATH: process.env.PATH, HOME: home, TERM: "xterm-256color", COLORTERM: "truecolor", LANG: "en_US.UTF-8",
     XDG_CONFIG_HOME: resolve(sandbox, "config"), XDG_DATA_HOME: resolve(sandbox, "data"),
     XDG_STATE_HOME: resolve(sandbox, "state"), XDG_CACHE_HOME: resolve(sandbox, "cache"),
+    OPENCODE_DESKTOP_TEST_ROOT: sandbox,
     ATLAS_TEST_KEY: "local-fixture-not-a-credential",
 };
-let args = process.argv.slice(2);
-if (!args.length) {
+let args = process.argv.slice(2).filter((arg) => arg !== "--desktop" && arg !== "--screenshots");
+if (!args.length && !desktop) {
   // Explicit selection avoids the TUI's initial model-catalog loading race.
   const seed = spawn(binary, ["run", "--standalone", "--model", "atlas/atlas-demo", "--format", "json", "Hello Atlas"],
     { cwd: workspace, env: environment, stdio: ["ignore", "pipe", "inherit"] });

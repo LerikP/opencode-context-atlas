@@ -3,7 +3,7 @@ set -eu
 
 usage() {
   printf '%s\n' \
-    'Install Context Atlas using OpenCode v2 (2.0.22 or newer).' \
+    'Install Context Atlas using OpenCode v2 (2.2.0 or newer).' \
     'Usage: sh install.sh [--help]' \
     'Set OPENCODE_BIN to an explicit OpenCode v2 executable if needed.' \
     'No separate Node.js, npm or Bun installation is required.'
@@ -25,7 +25,7 @@ compatible() {
   case "$minor:$patch" in
     *[!0-9:]*|:*|*:) return 1 ;;
   esac
-  [ "$minor" -gt 0 ] || [ "$patch" -ge 22 ]
+  [ "$minor" -ge 2 ]
 }
 
 main() {
@@ -41,7 +41,7 @@ main() {
   binary=${OPENCODE_BIN:-}
   if [ -n "$binary" ]; then
     if ! compatible "$binary"; then
-      printf '%s\n' 'OPENCODE_BIN must point to OpenCode v2, version 2.0.22 or newer.' >&2
+      printf '%s\n' 'OPENCODE_BIN must point to OpenCode v2, version 2.2.0 or newer.' >&2
       exit 1
     fi
   else
@@ -53,7 +53,7 @@ main() {
     done
     if [ -z "$binary" ]; then
       printf '%s\n' \
-        'OpenCode v2 (2.0.22 or newer) was not found.' \
+        'OpenCode v2 (2.2.0 or newer) was not found.' \
         'Install it from https://opencode.ai/v2/docs/ or set OPENCODE_BIN.' >&2
       exit 1
     fi

@@ -34,7 +34,7 @@ esac
 }
 
 test("shell installation delegates to OpenCode without node, npm or bun on PATH", async () => {
-  const setup = await fixture({ opencode: "opencode v2.0.22" });
+  const setup = await fixture({ opencode: "opencode v2.2.0" });
   try {
     const result = setup.run();
     assert.equal(result.status, 0, result.stderr);
@@ -44,7 +44,7 @@ test("shell installation delegates to OpenCode without node, npm or bun on PATH"
 });
 
 test("finds opencode2 when the default opencode is v1", async () => {
-  const setup = await fixture({ opencode: "1.18.34", opencode2: "opencode v2.1.0" });
+  const setup = await fixture({ opencode: "1.18.34", opencode2: "opencode v2.3.0" });
   try {
     const result = setup.run();
     assert.equal(result.status, 0, result.stderr);
@@ -53,7 +53,7 @@ test("finds opencode2 when the default opencode is v1", async () => {
 });
 
 test("accepts an explicit binary path containing spaces", async () => {
-  const setup = await fixture({ "OpenCode v2": "opencode v2.0.22" });
+  const setup = await fixture({ "OpenCode v2": "opencode v2.2.0" });
   try {
     const result = setup.run({ OPENCODE_BIN: join(setup.bin, "OpenCode v2") });
     assert.equal(result.status, 0, result.stderr);
@@ -62,19 +62,19 @@ test("accepts an explicit binary path containing spaces", async () => {
 });
 
 test("unsupported or missing runtimes cause no installation", async () => {
-  for (const version of [undefined, "1.18.34", "opencode v2.0.21", "unexpected output"]) {
+  for (const version of ["opencode v2.0.22", "opencode v2.1.99", undefined, "1.18.34", "unexpected output"]) {
     const setup = await fixture(version ? { opencode: version } : {});
     try {
       const result = setup.run();
       assert.notEqual(result.status, 0);
-      assert.ok(result.stderr.includes("2.0.22"));
+      assert.ok(result.stderr.includes("2.2.0"));
       assert.equal(await setup.calls(), "");
     } finally { await setup.cleanup(); }
   }
 });
 
 test("installation failures propagate rather than printing success", async () => {
-  const setup = await fixture({ opencode: "opencode v2.0.22" });
+  const setup = await fixture({ opencode: "opencode v2.2.0" });
   try {
     const result = setup.run({ INSTALL_EXIT: "9" });
     assert.equal(result.status, 9);

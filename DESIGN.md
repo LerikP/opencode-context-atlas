@@ -2,7 +2,7 @@
 
 ## Experience
 
-A Claude Code-inspired context map, native to OpenCode 2.0.22. `/context`
+A Claude Code-inspired context map, targeting OpenCode 2.2.0. `/context`
 (alias `/atlas`) and a clickable sidebar indicator open the same centered
 dialog. A colored cell map and category legend sit above a scrollable inspector.
 Select a category to see individual sources; select a source to read its captured
@@ -43,7 +43,12 @@ dialog and sidebar consume it. Tests assert fixed grid size, free capacity,
 unknown limits, rounding and overflow. It has no interchangeable adapters.
 
 The server adapter owns OpenCode hooks, model/MCP metadata and a bounded in-memory
-LRU. The TUI adapter owns lifecycle, RPC, focus, themes and commands. RPC is the
+LRU. The TUI adapter owns lifecycle, RPC, focus, themes and commands. The Desktop
+adapter (`src/gui.tsx`) registers a side panel and local commands through the
+experimental GUI API. It shares the report schema, map allocation and server RPC,
+scopes requests to the selected server/location, and renders previews as plain text.
+Its Solid DOM bundle is built with the SDK's Vite plugin; host modules stay external.
+RPC is the
 actual cross-process boundary; one shared, validated schema describes its report.
 There is no filesystem cache and no provider proxy in production.
 
@@ -60,7 +65,10 @@ built-in context contribution. Do not replace the entire sidebar.
 
 ## Verification
 
-Pure behavioral tests; TypeScript against pinned SDK; isolated OpenCode 2.0.22
-with a local deterministic test provider; slash command, sidebar click, source
-drill-down, Escape and resize checks. Development runtime and credentials are
-isolated from the user's normal OpenCode installation.
+Pure behavioral tests; TypeScript against pinned SDK 2.2.0; OpenTUI renderer tests
+and GUI DOM integration tests with a simulated host/RPC. The isolated demo's
+local deterministic test provider supports manual terminal and Desktop checks.
+Desktop 2.2.6 has been exercised with the real capture/RPC path, slash command,
+source navigation, Escape, Back and Refresh. Screenshot mode replaces only the
+server report with curated, labelled fixture data. The Desktop launcher uses
+`OPENCODE_DESKTOP_TEST_ROOT` to isolate the profile and server state.

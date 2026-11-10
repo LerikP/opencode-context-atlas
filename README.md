@@ -1,6 +1,6 @@
 # Context Atlas
 
-A Claude Code-inspired **context map for OpenCode v2**. See what occupies your
+A Claude Code-inspired **context map for OpenCode v2 — terminal and Desktop**. See what occupies your
 context window, then drill into the actual rules, skills, tool definitions and
 messages behind the numbers.
 
@@ -34,7 +34,7 @@ are illustrative demo data.
 
 </details>
 
-## Open it
+## Open it in the terminal
 
 - **`/context`**, or **`/atlas`** — open the inspector for the current session.
 - **Click `Atlas ↗`** in the sidebar — open the same inspector.
@@ -60,8 +60,68 @@ to open the full inspector shown above.
 
 ## Install
 
-Requires **OpenCode v2, version 2.0.22 or newer** (tested with 2.0.22).
+Atlas **0.2.0** requires **OpenCode v2, version 2.2.0 or newer**, for both the
+terminal and Desktop. Atlas 0.1.x targets the older terminal API.
 OpenCode 1 is not supported.
+
+### Desktop
+
+The package includes a Desktop entry using OpenCode 2.2.0's experimental GUI API
+(`./gui-experimental`). Install the package on the server used by Desktop, restart
+Desktop, and send a message to capture a request. Open **`/context`**, **`/atlas`**,
+the **Inspect context · Atlas** palette command, or **+ → Context Atlas** in the
+session's side panel.
+
+Atlas opens as a side-panel tab with a colored context map, category totals,
+source lists and text previews. Click a category or cell, then a source.
+**Back** or **Escape** returns one level; **Refresh** fetches the latest snapshot.
+The panel follows the selected session and its server. Provider usage is shown
+separately from estimates. **Symbols** in the panel header, or **s** while the
+panel has focus, cycles **Blocks → Unicode → Nerd Font**, updating both the map
+and category icons. Nerd Font is the default, as in the TUI. The choice is saved
+in Desktop plugin storage, independently of the terminal preference. For Nerd
+Font mode, choose an installed Nerd Font Mono as Desktop's monospace font;
+Unicode and Blocks work without it.
+
+**Header indicator: On/Off** in the Atlas panel optionally adds **Atlas · 51%**
+with a small usage ring beside Desktop's built-in context indicator. The percentage
+is Atlas's estimated token count divided by the context limit. It is **off
+by default**, and the choice is saved across restarts. Click it to open Atlas for
+that session. Unknown usage or limits show **Atlas · —**, not zero.
+Disabled indicators and inactive session headers make no Atlas RPC
+requests. Desktop's built-in indicator remains available.
+
+The GUI is built against SDK 2.2.0 and covered by DOM integration tests.
+On Desktop 2.2.6, the real capture/RPC path, `/atlas`, source previews, Escape,
+Back and Refresh have also been exercised with the isolated local provider.
+
+#### Desktop screenshots
+
+Captured in OpenCode Desktop 2.2.6 with illustrative demo data. The source
+previews, token estimates and provider usage are curated screenshot fixtures.
+
+<img src="docs/screenshot-desktop-overview-nerd-font.png" alt="Desktop context map with Nerd Font icons, category estimates and the Symbols switch" width="640">
+
+The optional header indicator opens Atlas and shows estimated context occupancy:
+
+![Atlas header indicator with a usage ring and 51% context occupancy](docs/screenshot-desktop-header.png)
+
+<details>
+<summary>Desktop symbol modes and source inspection</summary>
+
+**Blocks**
+
+<img src="docs/screenshot-desktop-overview-blocks.png" alt="Desktop context map using colored blocks" width="640">
+
+**Unicode**
+
+<img src="docs/screenshot-desktop-overview-unicode.png" alt="Desktop context map using Unicode category symbols" width="640">
+
+**Loaded skill contents**
+
+<img src="docs/screenshot-desktop-skill-content.png" alt="Desktop inspector showing the ui-review skill preview and navigation controls" width="640">
+
+</details>
 
 ### Quick install — no Node.js required
 
@@ -110,11 +170,12 @@ This option needs Node.js/npm for dependency installation:
 git clone https://github.com/LerikP/opencode-context-atlas.git
 cd opencode-context-atlas
 npm ci
+npm run build
 ```
 
 For a checkout installation, add the **absolute checkout path** to `plugins` in your OpenCode v2
-`opencode.json` or `opencode.jsonc`. This loads the server capture hook and the TUI
-entry point together:
+`opencode.json` or `opencode.jsonc`. This package provides the server capture hook,
+TUI entry point and Desktop GUI bundle:
 
 ```jsonc
 {
@@ -123,7 +184,7 @@ entry point together:
 }
 ```
 
-### Sidebar indicator
+### Terminal sidebar indicator
 
 For either installation method, to replace the built-in sidebar context indicator, add this directive to your
 global **`cli.json`** (usually `~/.config/opencode/cli.json`):
@@ -279,9 +340,11 @@ npm run preview
 isolation, grid allocation and the shell installer (with Node.js/npm/Bun absent
 from the installer's `PATH`). `test:tui` uses the real OpenTUI renderer for
 keyboard navigation, mouse inspection, resizing, refresh and session switching.
+`test:gui` uses Solid DOM rendering with a simulated Desktop host to check local
+commands, source navigation, text escaping, server/session changes and RPC errors.
 
 GitHub Actions runs dependency installation, shell syntax validation, TypeScript
-checking and both test suites on pushes and pull requests. The **Check** workflow
+checking, all three test suites and bundle freshness on pushes and pull requests. The **Check** workflow
 also supports manual runs from the Actions tab.
 
 ### Releases
@@ -291,7 +354,8 @@ tags only, verifies the version against `package.json` and both root versions in
 `package-lock.json`, then runs the same checks as the **Check** workflow.
 Only after these pass does it create a GitHub Release with generated notes and
 a version-pinned installation command. No npm publication or separate build is
-needed: OpenCode loads the TypeScript entry points from the tagged Git package.
+needed for installation: the tagged Git package ships the server TypeScript
+entry and prebuilt TUI/GUI bundles. Run `npm run build` before committing a release.
 
 To prepare a release, update the package version and lockfile, commit and push
 that change, then create and push its matching tag:
@@ -310,7 +374,7 @@ should remain fixed; ship corrections under a new version.
 
 ### Isolated OpenCode demo
 
-Point `OPENCODE_V2_BINARY` at an OpenCode 2.0.22 executable, then:
+Point `OPENCODE_V2_BINARY` at an OpenCode 2.2.0 executable, then:
 
 ```sh
 OPENCODE_V2_BINARY=/absolute/path/to/opencode-v2 npm run demo
@@ -326,6 +390,33 @@ this behavior belongs to the demo provider, not the plugin.
 The local default binary path is
 `../opencode-v2-context-atlas/node_modules/@opencode/cli-darwin-arm64/bin/opencode`.
 No shell profile or normal OpenCode installation is modified.
+
+### Desktop demo and screenshots
+
+On macOS with `/Applications/OpenCode.app` installed:
+
+```sh
+npm run demo:desktop      # Real capture hook and a deterministic local provider
+npm run demo:screenshots  # Build the GUI and use curated screenshot data
+```
+
+Run one demo at a time; quit the demo application before starting it again.
+For another installation, set `OPENCODE_V2_BINARY` to the Desktop executable.
+The launcher sets `OPENCODE_DESKTOP_TEST_ROOT` to `.dev/runtime`, isolating the
+Desktop profile as well as server data/config/cache. `HOME` or Chromium's
+`--user-data-dir` alone does not isolate the packaged Desktop application.
+
+Choose a project in the demo window, send one message to the **Atlas Demo** model,
+then run `/atlas`. The screenshot mode has a 200k context window, a 101k estimate,
+108.4k illustrative provider input, and browsable rules, skills, tools, MCP,
+conversation and result sources. Try **Loaded skills → ui-review** and
+**MCP servers → Context7 · instructions** for detail screenshots.
+
+Screenshot mode uses a development-only RPC fixture (`dev/desktop-fixture.ts`),
+not live request attribution. Its values and previews are explicitly labelled
+illustrative. It requires no real provider credentials or MCP connection. The
+fixture and generated demo package are excluded from the installable package.
+Both demo commands share the disposable `.dev/runtime` profile.
 
 An agterm smoke probe can exercise an explicitly addressed demo terminal:
 

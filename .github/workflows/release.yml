@@ -72,7 +72,7 @@ jobs:
             --target "$RELEASE_COMMIT" \
             --title "Context Atlas $RELEASE_TAG" \
             --generate-notes \
-            --notes "Install this version (OpenCode v2 ≥ 2.0.22; no separate Node.js required):
+            --notes "Install this version (OpenCode v2 ≥ 2.2.0; no separate Node.js required):
 
           \`opencode plugin add github:${GH_REPO}#${RELEASE_TAG}\`
 

@@ -1,0 +1,27 @@
+.context-atlas { padding: 20px; height: 100%; overflow: auto; font-size: 14px; line-height: 1.5; }
+.context-atlas header, .context-atlas nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.context-atlas h2 { font-size: 18px; font-weight: 600; }
+.context-atlas header { flex-wrap: wrap; }
+.context-atlas .atlas-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.context-atlas[data-symbols="nerd-font"] .atlas-map button,
+.context-atlas[data-symbols="nerd-font"] .atlas-symbol { font-family: var(--atlas-symbol-font), "Symbols Nerd Font Mono", "JetBrainsMono Nerd Font Mono", monospace; }
+.context-atlas h3 { font-weight: 600; overflow-wrap: anywhere; }
+.context-atlas p { margin: 10px 0; }
+.context-atlas .atlas-muted { opacity: .7; }
+.context-atlas button { color: inherit; font: inherit; cursor: pointer; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 6px; padding: 6px 10px; background: transparent; }
+.context-atlas button:hover:not(:disabled) { background: color-mix(in srgb, currentColor 10%, transparent); }
+.context-atlas button:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.context-atlas .atlas-map { container-type: inline-size; display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: 4px; margin: 18px 0; }
+.context-atlas .atlas-map button { padding: 0; aspect-ratio: 1; border-radius: 3px; display: grid; place-items: center; line-height: 1; font-size: min(3.5cqw, 32px); }
+.context-atlas .atlas-symbol { display: inline-grid; place-items: center; flex: 0 0 1.25em; font-size: 20px; line-height: 1.2; }
+.context-atlas button:disabled { cursor: default; }
+.context-atlas .atlas-categories, .context-atlas .atlas-sources { display: grid; gap: 6px; margin: 16px 0; }
+.context-atlas .atlas-categories button, .context-atlas .atlas-sources button { display: flex; align-items: center; gap: 8px; text-align: left; overflow-wrap: anywhere; }
+.context-atlas .atlas-categories button span:last-child, .context-atlas .atlas-sources button span { margin-left: auto; white-space: nowrap; }
+.context-atlas pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: monospace; padding: 12px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 6px; }
+.atlas-header-indicator { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 3px 6px; border-radius: 6px; color: inherit; font: inherit; font-size: 12px; white-space: nowrap; cursor: pointer; }
+.atlas-header-indicator:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+.atlas-header-indicator:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.atlas-header-ring { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; }
+.atlas-header-track { opacity: .25; }
+@media (max-width: 600px) { .context-atlas { padding: 12px; } .context-atlas .atlas-map { grid-template-columns: repeat(10, minmax(0, 1fr)); } .context-atlas .atlas-map button { font-size: min(7cqw, 32px); } }

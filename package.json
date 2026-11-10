@@ -1,13 +1,14 @@
 {
   "name": "opencode-context-atlas",
-  "version": "0.1.5",
+  "version": "0.2.0",
   "description": "A Claude Code-inspired context map for OpenCode v2",
   "type": "module",
   "license": "MIT",
   "repository": "github:LerikP/opencode-context-atlas",
   "exports": {
     ".": "./src/index.ts",
-    "./tui": "./dist/tui.js"
+    "./tui": "./dist/tui.js",
+    "./gui-experimental": "./dist/gui-experimental.cjs"
   },
   "files": [
     "src",
@@ -19,33 +20,44 @@
   ],
   "scripts": {
     "build:tui": "node scripts/build-tui.mjs",
-    "prepublishOnly": "npm run build:tui",
-    "test": "npm run test:core && npm run test:tui",
+    "build:gui": "vite build",
+    "build": "npm run build:tui && npm run build:gui",
+    "prepublishOnly": "npm run build",
+    "test": "npm run test:core && npm run test:tui && npm run test:gui",
+    "test:gui": "vitest run",
     "test:core": "tsx --test test/*.test.ts",
     "test:tui": "bun test --preload @opentui/solid/preload test/*.test.tsx",
     "typecheck": "tsc --noEmit",
     "demo": "tsx dev/runtime.ts",
+    "demo:desktop": "tsx dev/runtime.ts --desktop",
+    "demo:screenshots": "npm run build:gui && tsx dev/runtime.ts --desktop --screenshots",
     "preview": "bun --preload @opentui/solid/preload dev/preview.tsx"
   },
   "dependencies": {
-    "@opencode/plugin": "2.0.22",
+    "@opencode/plugin": "2.2.0",
     "js-tiktoken": "1.0.21",
     "zod": "4.1.8"
   },
   "devDependencies": {
+    "effect": "4.0.1",
     "@babel/core": "^7.28.0",
     "@babel/preset-typescript": "^7.27.1",
-    "@opentui/core": "0.5.14",
-    "@opentui/solid": "0.5.14",
+    "@opentui/core": "0.7.0",
+    "@opentui/solid": "0.7.0",
     "@types/node": "^24.10.1",
-    "babel-preset-solid": "^1.9.12",
+    "babel-preset-solid": "1.9.12",
     "solid-js": "1.9.12",
     "tsx": "^4.20.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "vite": "^7.3.6",
+    "vite-plugin-solid": "^2.11.10",
+    "vitest": "^4.0.0",
+    "jsdom": "^27.0.0"
   },
   "peerDependencies": {
-    "@opentui/core": ">=0.5.14",
-    "@opentui/solid": ">=0.5.14",
+    "effect": "^4.0.1",
+    "@opentui/core": ">=0.7.0",
+    "@opentui/solid": ">=0.7.0",
     "solid-js": ">=1.9.0"
   }
 }
