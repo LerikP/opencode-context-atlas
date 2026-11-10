@@ -1,6 +1,6 @@
 {
   "name": "opencode-context-atlas",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A Claude Code-inspired context map for OpenCode v2",
   "type": "module",
   "license": "MIT",
