@@ -60,7 +60,7 @@ to open the full inspector shown above.
 
 ## Install
 
-Atlas **0.2.1** requires **OpenCode v2, version 2.2.0 or newer**, for both the
+Atlas **0.2.4** requires **OpenCode v2, version 2.2.0 or newer**, for both the
 terminal and Desktop. Atlas 0.1.x targets the older terminal API.
 OpenCode 1 is not supported.
 
@@ -359,6 +359,18 @@ keyboard navigation, mouse inspection, resizing, refresh and session switching.
 `test:gui` uses Solid DOM rendering with a simulated Desktop host to check local
 commands, source navigation, text escaping, server/session changes and RPC errors.
 
+The scoped npm override for `@opentui/solid` replaces its exact Solid 1.9.12 peer
+with the project's patched Solid version. Keep a single Solid runtime for the TUI;
+the lockfile also pins the patched Seroval dependencies. Run all three test suites
+and rebuild both bundles when updating this override or the Solid compiler.
+The `glob` and `minimatch` overrides pin patched versions across the SDK and
+build-tool dependency trees until their upstream constraints are updated.
+These overrides apply when installing this checkout as the root project; npm
+does not apply them when Atlas is a dependency. The published peer range remains
+compatible with OpenTUI 0.7.0's exact peer. Updating Solid in a consuming runtime
+requires a compatible OpenTUI release or an override owned and tested by that host;
+the checkout's audit results do not certify the host's dependency tree.
+
 GitHub Actions runs dependency installation, shell syntax validation, TypeScript
 checking, all three test suites and bundle freshness on pushes and pull requests. The **Check** workflow
 also supports manual runs from the Actions tab.
@@ -383,10 +395,10 @@ To prepare a release, update the package version and lockfile, commit and push
 that change, then create and push its matching tag:
 
 ```sh
-npm version 0.2.1 --no-git-tag-version
+npm version 0.2.4 --no-git-tag-version
 # Review, commit and push the version change before tagging.
-git tag -a v0.2.1 -m 'Context Atlas v0.2.1'
-git push origin v0.2.1
+git tag -a v0.2.4 -m 'Context Atlas v0.2.4'
+git push origin v0.2.4
 ```
 
 The workflow's manual **Run workflow** action validates the supplied tag against
