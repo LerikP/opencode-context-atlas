@@ -166,7 +166,7 @@ export function AtlasView(props: AtlasViewProps) {
                   }</For>
                 </box>
               }</For>
-              <text fg={props.muted} marginTop={1}>{`1 cell ≈ ${limit() ? formatTokens(limit()! / cells().length) : "?"} tokens`}</text>
+              <text fg={props.muted} marginTop={1}>{`1 cell ≈ ${limit() ? formatTokens(Math.max(limit()!, snap.total) / cells().length) : "?"} tokens`}</text>
             </box>
             <box flexDirection="column" flexGrow={1} minWidth={28}>
               <For each={totals()}>{(row, index) =>

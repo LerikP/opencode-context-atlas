@@ -4,6 +4,7 @@ import { testRender } from "@opentui/solid";
 import type { TextRenderable } from "@opentui/core";
 import { createSignal } from "solid-js";
 import { AtlasView } from "../src/view.tsx";
+import { AtlasView as CompiledAtlasView } from "../dist/view.js";
 import { cellSymbol } from "../src/map.ts";
 import { categories, categoryKeys, type Report } from "../src/report.ts";
 
@@ -45,6 +46,46 @@ test("renders a context map and supports keyboard drill-down, back and close", a
     screen.renderer.destroy();
   }
 });
+
+for (const [name, View] of [["source", AtlasView], ["bundle", CompiledAtlasView]] as const) {
+  test(`TUI ${name} accepts both s and Shift+S for the symbol shortcut`, async () => {
+    let changes = 0;
+    const screen = await testRender(() => <View report={report} loading={false} error={null}
+      foreground="#eeeeee" muted="#999999" background="#1b1b23" onClose={() => {}} onRefresh={() => {}}
+      onCycleSymbols={() => { changes++; }} />, { width: 100, height: 40 });
+    try {
+      await screen.renderOnce();
+      screen.mockInput.pressKey("s");
+      await screen.renderOnce();
+      assert.equal(changes, 1);
+      screen.mockInput.pressKey("S");
+      await screen.renderOnce();
+      assert.equal(changes, 2, "OpenTUI normalizes the shifted character for this shortcut");
+    } finally { screen.renderer.destroy(); }
+  });
+
+  test(`TUI ${name} cell scale follows the saturated map`, async () => {
+    const sample: Report = { sessionID: "demo", limit: 100000, snapshot: {
+      capturedAt: 0, model: "test/model", total: 200000, notes: [], entries: [
+        { id: "rules", category: "rules", name: "AGENTS.md", tokens: 200000, bytes: 10, preview: "Rules", truncated: false },
+      ],
+    } };
+    const [current, update] = createSignal(sample);
+    const screen = await testRender(() => <View report={current()} loading={false} error={null}
+      foreground="#eeeeee" muted="#999999" background="#1b1b23" onClose={() => {}} onRefresh={() => {}} />,
+      { width: 100, height: 40 });
+    try {
+      await screen.renderOnce();
+      assert.ok(screen.captureCharFrame().includes("1 cell ≈ 1.1k tokens"), "200k captured tokens fill 180 cells, not the 100k model limit");
+      update({ ...sample, limit: 360000 });
+      await screen.renderOnce();
+      assert.ok(screen.captureCharFrame().includes("1 cell ≈ 2.0k tokens"), "a non-saturated map includes free capacity");
+      update({ ...sample, limit: null });
+      await screen.renderOnce();
+      assert.ok(screen.captureCharFrame().includes("1 cell ≈ ? tokens"), "unknown capacity is not an estimate of zero");
+    } finally { screen.renderer.destroy(); }
+  });
+}
 
 test("mouse inspection survives resize and keeps the footer reachable in a short terminal", async () => {
   const screen = await testRender(() => <AtlasView report={report} loading={false} error={null}

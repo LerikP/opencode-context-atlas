@@ -33,7 +33,7 @@ test("/context opens the current session overlay without sending a model prompt"
       sessionRead = sessionID;
       return { sessionID, limit: 200000, snapshot: null };
     } }) },
-    data: { session: { message: { list: () => [] }, get: () => undefined } },
+    data: { session: { message: { list: () => [] }, get: () => ({ location: { directory: "/workspace" } }) } },
     keymap: { layer: (read: () => { commands: KeymapCommand[] }) => { commands = read().commands; } },
     ui: {
       slot: (slot: SlotClaim) => { slots.push(slot); return () => {}; },
@@ -74,7 +74,7 @@ test("switching sessions never displays the previous session's snapshot while RP
       if (sessionID === "second") return new Promise(() => {});
       return { sessionID, limit: 100000, snapshot: { model: "test/model", capturedAt: 0, total: 12345, notes: [], entries: [] } };
     } }) },
-    data: { session: { get: () => undefined, message: { list: () => [] } } },
+    data: { session: { get: () => ({ location: { directory: "/workspace" } }), message: { list: () => [] } } },
     ui: { slot: (slot: SlotClaim) => { slots.push(slot); return () => {}; } },
   } as unknown as Context;
   const cleanup = await tui.setup(host);
@@ -100,7 +100,7 @@ test("Atlas opens on left-button release and remains open after a complete click
     storage: storageFixture(),
     options: {}, theme: { text: { base: "#eeeeee", muted: "#999999" }, background: { base: "#15151a" } },
     client: { rpc: () => ({ report: async ({ sessionID }: { sessionID: string }) => ({ sessionID, limit: 200000, snapshot: null }) }) },
-    data: { session: { get: () => undefined, message: { list: () => [] } } },
+    data: { session: { get: () => ({ location: { directory: "/workspace" } }), message: { list: () => [] } } },
     keymap: { layer: () => {} },
     ui: {
       slot: (slot: SlotClaim) => { slots.push(slot); return () => {}; },
@@ -159,7 +159,7 @@ for (const [mode, ruleSymbol, toolSymbol] of [
           { id: "tools", category: "tools", name: "read", tokens: 20000, bytes: 10, preview: "Tool text", truncated: false },
         ] },
       }) }) },
-      data: { session: { get: () => undefined, message: { list: () => [] } } },
+      data: { session: { get: () => ({ location: { directory: "/workspace" } }), message: { list: () => [] } } },
       keymap: { layer: (read: () => { commands: KeymapCommand[] }) => { commands = read().commands; } },
       ui: {
         slot: (slot: SlotClaim) => { slots.push(slot); return () => {}; },
@@ -213,7 +213,7 @@ test("Symbols button and s cycle the shared mode and restore the choice in a new
           { id: "rules", category: "rules", name: "AGENTS.md", tokens: 20000, bytes: 10, preview: "Rules", truncated: false },
         ] },
       }) }) },
-      data: { session: { get: () => undefined, message: { list: () => [] } } },
+      data: { session: { get: () => ({ location: { directory: "/workspace" } }), message: { list: () => [] } } },
       keymap: { layer: (read: () => { commands: KeymapCommand[] }) => { commands = read().commands; } },
       ui: {
         slot: (slot: SlotClaim) => { slots.push(slot); return () => {}; },
@@ -267,6 +267,50 @@ test("Symbols button and s cycle the shared mode and restore the choice in a new
     assert.ok(reopened.captureCharFrame().split("\n")[1].includes("≡"));
   } finally { await reopened.close(); }
 });
+
+for (const [name, plugin] of [["source", tui], ["bundle", compiledTui]] as const) {
+  test(`TUI ${name} waits for location and clears snapshots when location changes`, async () => {
+    const slots: SlotClaim[] = [];
+    const [location, setLocation] = createSignal<{ directory: string }>();
+    const requests: unknown[] = [];
+    let resolve!: (value: unknown) => void;
+    const host = {
+      storage: storageFixture(), options: {},
+      theme: { text: { base: "#eeeeee", muted: "#999999" } },
+      client: { rpc: () => ({ report: async ({ sessionID }: { sessionID: string }, options: { location?: unknown }) => {
+        requests.push(options.location);
+        if (requests.length > 1) return new Promise((done) => { resolve = done; });
+        return { sessionID, limit: 100000, snapshot: { model: "test/model", capturedAt: 0, total: 12345, notes: [], entries: [] } };
+      } }) },
+      data: { session: { get: () => location() ? { location: location() } : undefined, message: { list: () => [] } } },
+      ui: { slot: (slot: SlotClaim) => { slots.push(slot); return () => {}; } },
+    } as unknown as Context;
+    const cleanup = await plugin.setup(host);
+    const screen = await testRender(() => <box flexDirection="column">
+      {slots.filter((slot) => slot.prepend === "sidebar.content").map((slot) => slot.render({ sessionID: "demo" } as never))}
+    </box>, { width: 40, height: 10 });
+    try {
+      await screen.renderOnce();
+      await screen.renderOnce();
+      assert.equal(requests.length, 0, "missing location must not read the server's default cache");
+      setLocation({ directory: "/workspace/first" });
+      await screen.renderOnce();
+      await screen.renderOnce();
+      assert.deepEqual(requests, [{ directory: "/workspace/first" }]);
+      assert.ok(screen.captureCharFrame().includes("12.3k"), "late location loading must fetch the capture");
+      setLocation({ directory: "/workspace/second" });
+      await screen.renderOnce();
+      assert.equal(requests.length, 2);
+      assert.ok(!screen.captureCharFrame().includes("12.3k"), "previous location must disappear while the new RPC is pending");
+      setLocation(undefined);
+      resolve({ sessionID: "demo", limit: 100000, snapshot: { model: "test/model", capturedAt: 0, total: 23456, notes: [], entries: [] } });
+      await screen.renderOnce();
+      await screen.renderOnce();
+      assert.equal(requests.length, 2);
+      assert.ok(!screen.captureCharFrame().includes("23.5k"), "a late response must not restore a detached location");
+    } finally { screen.renderer.destroy(); await cleanup?.(); }
+  });
+}
 
 test("report requests are scoped to the session location", async () => {
   const slots: SlotClaim[] = [];

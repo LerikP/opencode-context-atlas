@@ -385,7 +385,7 @@ export function AtlasView(props) {
               })()
             }), _el$26);
             _$setProp(_el$26, "marginTop", 1);
-            _$insert(_el$26, () => `1 cell ≈ ${limit() ? formatTokens(limit() / cells().length) : "?"} tokens`);
+            _$insert(_el$26, () => `1 cell ≈ ${limit() ? formatTokens(Math.max(limit(), snap.total) / cells().length) : "?"} tokens`);
             _$insertNode(_el$27, _el$28);
             _$setProp(_el$27, "flexDirection", "column");
             _$setProp(_el$27, "flexGrow", 1);

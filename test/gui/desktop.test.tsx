@@ -92,7 +92,8 @@ test.each(["source", "bundle"])("Desktop (%s) opens Atlas locally and inspects c
   expect(root.querySelector('.atlas-categories button:nth-child(2) span')?.textContent).toBe('≡');
   root.querySelector('.context-atlas')!.dispatchEvent(new KeyboardEvent('keydown', { key: 's', bubbles: true }));
   expect(root.textContent).toContain('Symbols: Nerd Font');
-  click('Symbols: Nerd Font');
+  root.querySelector('.context-atlas')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'S', shiftKey: true, bubbles: true }));
+  expect(root.textContent).toContain('Symbols: Blocks');
   click('Symbols: Blocks');
   expect(appearance().symbols).toBe('unicode');
   expect(report).toHaveBeenCalledTimes(1);

@@ -70,20 +70,30 @@ function useReport(context: Context, sessionID: () => string) {
   const trigger = createMemo(() => {
     const messages = context.data.session.message.list(sessionID());
     const last = messages.at(-1);
-    return { sessionID: sessionID(), last: last?.id, completed: last?.type === "assistant" ? last.time.completed : undefined };
-  }, undefined, { equals: (a, b) => a.sessionID === b.sessionID && a.last === b.last && a.completed === b.completed });
-  const [report, { refetch }] = createResource(trigger, async ({ sessionID }) => {
+    const location = context.data.session.get(sessionID())?.location;
+    return { sessionID: sessionID(), location: location ? { ...location } : undefined,
+      last: last?.id, completed: last?.type === "assistant" ? last.time.completed : undefined };
+  }, undefined, { equals: (a, b) => a.sessionID === b.sessionID && a.last === b.last && a.completed === b.completed
+    && a.location?.directory === b.location?.directory });
+  const [report, { refetch }] = createResource(trigger, async (input) => {
     pending?.abort();
+    const { sessionID, location } = input;
+    if (!location) return null;
     pending = new AbortController();
     const signal = AbortSignal.any([pending.signal, AbortSignal.timeout(5000)]);
     // Plugin RPC calls default to the server's own location, which has a separate
     // snapshot cache. Scope the call to the session's location to read its captures.
-    const location = context.data.session.get?.(sessionID)?.location;
     const result = reportSchema.parse(await rpc.report({ sessionID }, { signal, location }));
     if (result.sessionID !== sessionID) throw new Error("Unexpected session");
-    return result;
+    return { input, report: result };
   });
-  return { report: () => report.error || report.latest?.sessionID !== sessionID() ? null : report.latest ?? null,
+  return { report: () => {
+    if (report.error) return null;
+    const value = report.latest;
+    const input = trigger();
+    return value?.input.sessionID === input.sessionID
+      && value.input.location?.directory === input.location?.directory ? value.report : null;
+  },
     loading: () => report.loading, error: () => report.error ? "Context unavailable. Enable the Atlas server plugin and press r to retry." : null,
     refresh: () => { void refetch(); } };
 }
